@@ -1,10 +1,11 @@
-use crate::endpoints::params::BenchEndpointComponent;
+use crate::endpoints::params::{BenchEndpointComponent, CheckPath};
 use anyhow::Result;
 use reqwest::{
-    StatusCode,
+    Response, StatusCode,
     header::{HeaderMap, HeaderName},
 };
 use serde::Deserialize;
+use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::time::Instant;
 use tokio::task::JoinSet;
@@ -12,12 +13,14 @@ use toml::Value;
 
 mod params;
 
+/// Represents a header configuration for an endpoint.
 #[derive(Debug, Deserialize)]
 struct HeaderConfig {
     value: String,
     name: String,
 }
 
+/// Represents a parsed endpoint component.
 #[derive(Debug, Deserialize)]
 pub struct Endpoints {
     origin_base_url: String,
@@ -30,26 +33,47 @@ pub struct Endpoints {
     _parsed_endpoints: HashMap<String, BenchEndpointComponent>,
 }
 
+/// BuildEndpoint represents a parsed endpoint component.
 #[derive(Debug, Clone)]
 pub struct BuildEndpoint {
     from: String,
     target: String,
+    from_check_path: Option<CheckPath>,
+    target_check_path: Option<CheckPath>,
 }
 
+/// InnerEndpointRequestResult represents the result of a request to an endpoint.
 #[derive(Debug)]
 pub enum InnerEndpointRequestResult {
-    From(StatusCode, u128),
-    Target(StatusCode, u128),
+    From(StatusCode, u128, Option<JsonValue>),
+    Target(StatusCode, u128, Option<JsonValue>),
 }
 
+/// EndpointRequestResult represents the result of a request to an endpoint.
 #[derive(Default)]
 pub struct EndpointRequestResult {
     pub from: String,
     pub target: String,
     pub deltas: u128,
+    pub diff: Option<Diff>,
+}
+
+/// Diff represents the difference between two endpoints.
+pub enum Diff {
+    String(String),
+    Number(f64),
 }
 
 impl Endpoints {
+    /// new parses the given TOML config string into an Endpoints struct.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - A TOML string representing the endpoints configuration.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the parsed `Endpoints` struct, or an error if parsing fails.
     pub fn new(config: String) -> Result<Self> {
         let mut endpoints: Endpoints = toml::from_str(&config)?;
 
@@ -63,6 +87,11 @@ impl Endpoints {
         Ok(endpoints)
     }
 
+    /// build_endpoints builds a HashMap of `BuildEndpoint` structs from the parsed endpoints.
+    ///
+    /// # Returns
+    ///
+    /// A `HashMap` where the key is the endpoint name and the value is the `BuildEndpoint` struct.
     pub fn build_endpoints(&self) -> HashMap<String, BuildEndpoint> {
         let mut endpoints = HashMap::new();
 
@@ -72,6 +101,8 @@ impl Endpoints {
             let build_endpoint = BuildEndpoint {
                 from: format!("{}/{}", self.origin_base_url, from),
                 target: format!("{}/{}", self.bench_base_url, target),
+                from_check_path: parsed.from.check_path.clone(),
+                target_check_path: parsed.target.check_path.clone(),
             };
 
             endpoints.insert(name.clone(), build_endpoint);
@@ -80,6 +111,11 @@ impl Endpoints {
         endpoints
     }
 
+    /// build_headers builds a `HeaderMap` from the parsed headers configuration.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the `HeaderMap`, or an error if building fails.
     pub fn build_headers(&self) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
 
@@ -97,6 +133,16 @@ impl Endpoints {
 }
 
 impl BuildEndpoint {
+    /// new parses the given endpoint name and value into a `BuildEndpoint` struct.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the endpoint.
+    /// * `value` - The value of the endpoint, as a `Value` from the TOML parser.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the parsed `BuildEndpoint` struct, or an error if parsing fails.
     pub async fn run(self, client: reqwest::Client) -> Result<EndpointRequestResult> {
         let mut set: JoinSet<Result<InnerEndpointRequestResult>> = JoinSet::new();
 
@@ -106,9 +152,29 @@ impl BuildEndpoint {
             let res = from_client.get(self.from.clone()).send().await?;
             let duration = start.elapsed();
 
+            // Get the status code of the response
+            let status = res.status();
+
+            // Compile the jmespath expression if check_path is present
+            if let Some(check_path) = &self.from_check_path {
+                match parse_reqwest_body(res, check_path).await {
+                    Ok(node) => {
+                        return Ok(InnerEndpointRequestResult::From(
+                            status,
+                            duration.as_millis(),
+                            Some(node),
+                        ));
+                    }
+                    Err(err) => {
+                        println!("Unable to parse the body due to: {err}")
+                    }
+                }
+            }
+
             Ok(InnerEndpointRequestResult::From(
-                res.status(),
+                status,
                 duration.as_millis(),
+                None,
             ))
         });
 
@@ -118,31 +184,97 @@ impl BuildEndpoint {
             let res = target_client.get(self.target.clone()).send().await?;
             let duration = start.elapsed();
 
+            // Get the status code of the response
+            let status = res.status();
+
+            // Compile the jmespath expression if check_path is present
+            if let Some(check_path) = self.target_check_path {
+                match parse_reqwest_body(res, &check_path).await {
+                    Ok(node) => {
+                        return Ok(InnerEndpointRequestResult::Target(
+                            status,
+                            duration.as_millis(),
+                            Some(node),
+                        ));
+                    }
+                    Err(err) => {
+                        println!("Unable to parse the body due to: {err}")
+                    }
+                }
+            }
+
             Ok(InnerEndpointRequestResult::Target(
-                res.status(),
+                status,
                 duration.as_millis(),
+                None,
             ))
         });
 
+        // store durations
         let mut from_duration = 0;
         let mut target_duration = 0;
+
+        // store node value
+        let mut from_node: Option<JsonValue> = None;
+        let mut target_node: Option<JsonValue> = None;
+
         let mut endpoint_result = EndpointRequestResult::default();
 
         while let Some(res) = set.join_next().await {
             match res?? {
-                InnerEndpointRequestResult::From(status, dur) => {
+                InnerEndpointRequestResult::From(status, dur, node) => {
                     endpoint_result.from = status.to_string();
                     from_duration = dur;
+                    from_node = node;
                 }
-                InnerEndpointRequestResult::Target(status, dur) => {
+                InnerEndpointRequestResult::Target(status, dur, node) => {
                     endpoint_result.target = status.to_string();
                     target_duration = dur;
+                    target_node = node;
                 }
             }
         }
 
+        // Calculating the duration difference between the two requests
         endpoint_result.deltas = target_duration.saturating_sub(from_duration);
+
+        // Checking the diff between the two nodes and storing it in the result
+        // The diff comes from the check_path provided by the endpoint configuration
+        let diff = from_node.zip(target_node).and_then(|(f, t)| match (f, t) {
+            (JsonValue::String(f), JsonValue::String(t)) => {
+                if f != t {
+                    Some(Diff::String(t.to_string()))
+                } else {
+                    None
+                }
+            }
+            (JsonValue::Number(f), JsonValue::Number(t)) => Some(Diff::Number(
+                t.as_f64().unwrap_or_default() - f.as_f64().unwrap_or_default(),
+            )),
+            _ => None,
+        });
+
+        endpoint_result.diff = diff;
 
         Ok(endpoint_result)
     }
+}
+
+/// Parses the response body using the provided check path and returns the matched node.
+///
+/// # Arguments
+///
+/// * `resp` - The response from the HTTP request.
+/// * `check_path` - The check path to use for parsing the response body.
+///
+/// # Returns
+///
+/// A `Result` containing the matched node, or an error if parsing fails.
+async fn parse_reqwest_body(resp: Response, check_path: &CheckPath) -> Result<JsonValue> {
+    let path = serde_json_path::JsonPath::parse(&check_path.path)?;
+    let body = resp.json::<JsonValue>().await?;
+
+    let node = path.query(&body).exactly_one().unwrap_or_default();
+
+    Ok(node.clone())
 }

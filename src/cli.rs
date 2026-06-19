@@ -1,4 +1,4 @@
-use crate::endpoints::{EndpointRequestResult, Endpoints};
+use crate::endpoints::{Diff, EndpointRequestResult, Endpoints};
 use anyhow::Result;
 use clap::Parser;
 use comfy_table::Table;
@@ -53,13 +53,26 @@ impl App {
 
         // Build the results
         let mut table = Table::new();
-        table.set_header(vec!["endpoint name", "from", "target", "deltas (in ms)"]);
+        table.set_header(vec![
+            "endpoint name",
+            "from",
+            "target",
+            "diff",
+            "deltas (in ms)",
+        ]);
 
         results.iter().for_each(|(endpoint, res)| {
+            let diff = match &res.diff {
+                Some(Diff::String(s)) => s.clone(),
+                Some(Diff::Number(n)) => format!("{}", n),
+                None => "None".to_string(),
+            };
+
             table.add_row(vec![
                 endpoint.clone(),
                 res.from.clone(),
                 res.target.clone(),
+                diff,
                 format!("{}", res.deltas),
             ]);
         });

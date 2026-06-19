@@ -4,14 +4,20 @@ use std::collections::HashMap;
 // These structs are used after deserialization due to the dynamic endpoint structure after the flatten.
 #[derive(Debug, Deserialize)]
 pub struct BenchEndpointComponent {
-    from: Endpoint,
-    target: Endpoint,
+    pub from: Endpoint,
+    pub target: Endpoint,
 }
 
 #[derive(Debug, Deserialize)]
-struct Endpoint {
+pub struct Endpoint {
     endpoint: String,
     params: HashMap<String, String>,
+    pub check_path: Option<CheckPath>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CheckPath {
+    pub path: String,
 }
 
 impl BenchEndpointComponent {
