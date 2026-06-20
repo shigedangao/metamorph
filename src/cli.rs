@@ -26,7 +26,7 @@ impl App {
 
         let client = reqwest::ClientBuilder::new()
             .default_headers(headers)
-            .timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(10))
             .build()?;
 
         let mut set: JoinSet<Result<(String, EndpointRequestResult)>> = JoinSet::new();
@@ -37,7 +37,17 @@ impl App {
             set.spawn(async move {
                 let mut sp = Spinner::new(Spinners::Dots, format!("Running {name} endpoints..."));
 
-                let res = endpoint.run(client).await?;
+                let res = match endpoint.run(client).await {
+                    Ok(res) => res,
+                    Err(e) => {
+                        sp.stop_and_persist(
+                            "✖",
+                            format!("Failed to process {name} endpoints: {e}"),
+                        );
+
+                        return Ok((name, EndpointRequestResult::default()));
+                    }
+                };
                 sp.stop_and_persist("✔", format!("Finished processing {name} endpoints."));
 
                 Ok((name, res))
