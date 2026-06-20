@@ -11,7 +11,7 @@ pub struct BenchEndpointComponent {
 #[derive(Debug, Deserialize)]
 pub struct Endpoint {
     endpoint: String,
-    params: HashMap<String, String>,
+    pub params: HashMap<String, String>,
     pub check_path: Option<CheckPath>,
 }
 
