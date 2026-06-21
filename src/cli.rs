@@ -1,4 +1,4 @@
-use crate::endpoints::{Diff, EndpointRequestResult, Endpoints};
+use crate::endpoints::{EndpointRequestResult, Endpoints, values::Diff};
 use anyhow::Result;
 use clap::Parser;
 use comfy_table::Table;
@@ -73,8 +73,8 @@ impl App {
 
         results.iter().for_each(|(endpoint, res)| {
             let diff = match &res.diff {
-                Some(Diff::String(s)) => s.clone(),
-                Some(Diff::Number(n)) => format!("{}", n),
+                Some(Diff::Result(s)) => s.clone(),
+                Some(Diff::UnableToCompare) => "Unable to compare".to_string(),
                 None => "None".to_string(),
             };
 

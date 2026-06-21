@@ -1,0 +1,25 @@
+origin_base_url = "https://<example>"
+bench_base_url = "https://<example>"
+headers = {
+    api_key = { name = "key", value = "xxxx" },
+}
+stream = true
+
+[rates]
+[rates.from]
+endpoint = "api/stream/index_v1"
+params = {
+    args = '{"indexCode": "KK_BRR_BTCUSD"}',
+}
+check_path = "$.result.percentages[0].price"
+reconcile_path = "$.result.interval.endTime"
+method = "Post"
+
+[rates.target]
+endpoint = "api/stream/index_v1"
+params = {
+    args = '{"indexCode": "KK_BRR_ETHUSD"}',
+}
+check_path = "$.result.percentages[0].price"
+reconcile_path = "$.result.interval.endTime"
+method = "Post"

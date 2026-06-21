@@ -1,17 +1,16 @@
-use crate::endpoints::params::{BenchEndpointComponent, CheckPath};
+use crate::endpoints::{params::BenchEndpointComponent, values::ValueComparison};
 use anyhow::Result;
-use reqwest::{
-    Response, StatusCode,
-    header::{HeaderMap, HeaderName},
-};
+use client::{ClientEndpointComponent, ClientEndpointOutput};
+use reqwest::header::{HeaderMap, HeaderName};
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
-use std::time::Instant;
 use tokio::task::JoinSet;
 use toml::Value;
 
+mod client;
 mod params;
+pub mod values;
 
 /// Represents a header configuration for an endpoint.
 #[derive(Debug, Deserialize)]
@@ -26,6 +25,8 @@ pub struct Endpoints {
     origin_base_url: String,
     bench_base_url: String,
     headers: Option<HashMap<String, HeaderConfig>>,
+    #[serde(default)]
+    stream: bool,
 
     #[serde(flatten)]
     _endpoints: HashMap<String, Value>,
@@ -36,32 +37,24 @@ pub struct Endpoints {
 /// BuildEndpoint represents a parsed endpoint component.
 #[derive(Debug, Clone)]
 pub struct BuildEndpoint {
-    from: String,
-    target: String,
-    from_check_path: Option<CheckPath>,
-    target_check_path: Option<CheckPath>,
+    from: ClientEndpointComponent,
+    target: ClientEndpointComponent,
 }
 
 /// InnerEndpointRequestResult represents the result of a request to an endpoint.
 #[derive(Debug)]
 pub enum InnerEndpointRequestResult {
-    From(StatusCode, u128, Option<JsonValue>),
-    Target(StatusCode, u128, Option<JsonValue>),
+    From(ClientEndpointOutput),
+    Target(ClientEndpointOutput),
 }
 
 /// EndpointRequestResult represents the result of a request to an endpoint.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct EndpointRequestResult {
     pub from: String,
     pub target: String,
     pub deltas: u128,
-    pub diff: Option<Diff>,
-}
-
-/// Diff represents the difference between two endpoints.
-pub enum Diff {
-    String(String),
-    Number(f64),
+    pub diff: Option<values::Diff>,
 }
 
 impl Endpoints {
@@ -97,12 +90,25 @@ impl Endpoints {
 
         for (name, parsed) in &self._parsed_endpoints {
             let (from, target) = parsed.template();
+            let (from_body, target_body) = parsed.get_body();
 
             let build_endpoint = BuildEndpoint {
-                from: format!("{}/{}", self.origin_base_url, from),
-                target: format!("{}/{}", self.bench_base_url, target),
-                from_check_path: parsed.from.check_path.clone(),
-                target_check_path: parsed.target.check_path.clone(),
+                from: ClientEndpointComponent::new(
+                    format!("{}/{}", self.origin_base_url, from),
+                    parsed.from.check_path.clone(),
+                    parsed.from.reconcile_path.clone(),
+                    parsed.from.method.clone(),
+                    self.stream,
+                    from_body,
+                ),
+                target: ClientEndpointComponent::new(
+                    format!("{}/{}", self.bench_base_url, target),
+                    parsed.target.check_path.clone(),
+                    parsed.target.reconcile_path.clone(),
+                    parsed.target.method.clone(),
+                    self.stream,
+                    target_body,
+                ),
             };
 
             endpoints.insert(name.clone(), build_endpoint);
@@ -122,8 +128,8 @@ impl Endpoints {
         if let Some(header_config) = &self.headers {
             for (_, config) in header_config {
                 headers.insert(
-                    HeaderName::from_lowercase(config.name.as_bytes())?,
-                    config.value.parse().unwrap(),
+                    HeaderName::from_bytes(config.name.as_bytes())?,
+                    config.value.parse()?,
                 );
             }
         }
@@ -148,66 +154,16 @@ impl BuildEndpoint {
 
         let from_client = client.clone();
         set.spawn(async move {
-            let start = Instant::now();
-            let res = from_client.get(self.from.clone()).send().await?;
-            let duration = start.elapsed();
+            let res = self.from.clone().send(&from_client).await?;
 
-            // Get the status code of the response
-            let status = res.status();
-
-            // Compile the jmespath expression if check_path is present
-            if let Some(check_path) = &self.from_check_path {
-                match parse_reqwest_body(res, check_path).await {
-                    Ok(node) => {
-                        return Ok(InnerEndpointRequestResult::From(
-                            status,
-                            duration.as_millis(),
-                            Some(node),
-                        ));
-                    }
-                    Err(err) => {
-                        println!("Unable to parse the body due to: {err}")
-                    }
-                }
-            }
-
-            Ok(InnerEndpointRequestResult::From(
-                status,
-                duration.as_millis(),
-                None,
-            ))
+            Ok(InnerEndpointRequestResult::From(res))
         });
 
         let target_client = client.clone();
         set.spawn(async move {
-            let start = Instant::now();
-            let res = target_client.get(self.target.clone()).send().await?;
-            let duration = start.elapsed();
+            let res = self.target.clone().send(&target_client).await?;
 
-            // Get the status code of the response
-            let status = res.status();
-
-            // Compile the jmespath expression if check_path is present
-            if let Some(check_path) = self.target_check_path {
-                match parse_reqwest_body(res, &check_path).await {
-                    Ok(node) => {
-                        return Ok(InnerEndpointRequestResult::Target(
-                            status,
-                            duration.as_millis(),
-                            Some(node),
-                        ));
-                    }
-                    Err(err) => {
-                        println!("Unable to parse the body due to: {err}")
-                    }
-                }
-            }
-
-            Ok(InnerEndpointRequestResult::Target(
-                status,
-                duration.as_millis(),
-                None,
-            ))
+            Ok(InnerEndpointRequestResult::Target(res))
         });
 
         // store durations
@@ -215,22 +171,28 @@ impl BuildEndpoint {
         let mut target_duration = 0;
 
         // store node value
-        let mut from_node: Option<JsonValue> = None;
-        let mut target_node: Option<JsonValue> = None;
+        let mut from_nodes: Option<Vec<JsonValue>> = None;
+        let mut target_nodes: Option<Vec<JsonValue>> = None;
+
+        // store reconcile nodes
+        let mut from_reconcile_nodes: Option<Vec<JsonValue>> = None;
+        let mut target_reconcile_nodes: Option<Vec<JsonValue>> = None;
 
         let mut endpoint_result = EndpointRequestResult::default();
 
         while let Some(res) = set.join_next().await {
             match res?? {
-                InnerEndpointRequestResult::From(status, dur, node) => {
-                    endpoint_result.from = status.to_string();
-                    from_duration = dur;
-                    from_node = node;
+                InnerEndpointRequestResult::From(output) => {
+                    endpoint_result.from = output.status.to_string();
+                    from_duration = output.elapsed;
+                    from_nodes = output.nodes;
+                    from_reconcile_nodes = output.reconcile_nodes;
                 }
-                InnerEndpointRequestResult::Target(status, dur, node) => {
-                    endpoint_result.target = status.to_string();
-                    target_duration = dur;
-                    target_node = node;
+                InnerEndpointRequestResult::Target(output) => {
+                    endpoint_result.target = output.status.to_string();
+                    target_duration = output.elapsed;
+                    target_nodes = output.nodes;
+                    target_reconcile_nodes = output.reconcile_nodes;
                 }
             }
         }
@@ -238,43 +200,18 @@ impl BuildEndpoint {
         // Calculating the duration difference between the two requests
         endpoint_result.deltas = target_duration.saturating_sub(from_duration);
 
-        // Checking the diff between the two nodes and storing it in the result
-        // The diff comes from the check_path provided by the endpoint configuration
-        let diff = from_node.zip(target_node).and_then(|(f, t)| match (f, t) {
-            (JsonValue::String(f), JsonValue::String(t)) => {
-                if f != t {
-                    Some(Diff::String(t.to_string()))
-                } else {
-                    None
-                }
-            }
-            (JsonValue::Number(f), JsonValue::Number(t)) => Some(Diff::Number(
-                t.as_f64().unwrap_or_default() - f.as_f64().unwrap_or_default(),
-            )),
-            _ => None,
-        });
+        // Compare the diff between two vec of node values whenever provided
+        if let Some((f_nodes, t_nodes)) = from_nodes.zip(target_nodes) {
+            let comparison_handle = ValueComparison::new(
+                f_nodes,
+                t_nodes,
+                from_reconcile_nodes,
+                target_reconcile_nodes,
+            );
 
-        endpoint_result.diff = diff;
+            endpoint_result.diff = comparison_handle.compare_values();
+        }
 
         Ok(endpoint_result)
     }
-}
-
-/// Parses the response body using the provided check path and returns the matched node.
-///
-/// # Arguments
-///
-/// * `resp` - The response from the HTTP request.
-/// * `check_path` - The check path to use for parsing the response body.
-///
-/// # Returns
-///
-/// A `Result` containing the matched node, or an error if parsing fails.
-async fn parse_reqwest_body(resp: Response, check_path: &CheckPath) -> Result<JsonValue> {
-    let path = serde_json_path::JsonPath::parse(&check_path.path)?;
-    let body = resp.json::<JsonValue>().await?;
-
-    let node = path.query(&body).exactly_one().unwrap_or_default();
-
-    Ok(node.clone())
 }
