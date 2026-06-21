@@ -74,7 +74,7 @@ impl ValueComparison {
                     (Value::String(s1), Value::String(s2)) => {
                         if s1 != s2 {
                             return Some(Diff::Result(format!(
-                                "Diff on key: {}, origin value: {} vs target value: {}",
+                                "Diff on key: {}, origin: {} vs target: {}",
                                 k, s1, s2
                             )));
                         }
@@ -83,7 +83,7 @@ impl ValueComparison {
                         let diff = t.as_f64().unwrap_or_default() - f.as_f64().unwrap_or_default();
                         if diff != 0.0 {
                             return Some(Diff::Result(format!(
-                                "Diff on key: {}, origin value: {} vs target value: {}",
+                                "Diff on key: {}, origin: {} vs target: {}",
                                 k, t, f
                             )));
                         };

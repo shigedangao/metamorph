@@ -8,7 +8,9 @@ Just a tool to bench 2 endpoints and see the deltas between them.
 cargo run --release  -- --config bench_example.toml
 ```
 
-## Configuration
+## Configuration 
+
+### Unary
 
 ```toml
 # Base URLs for the origin and benchmark endpoints
@@ -44,7 +46,40 @@ params = {
 # Then could be more below...
 ```
 
+### Stream
+
+```toml
+origin_base_url = "https://endpoint"
+bench_base_url = "https://endpoint"
+headers = {
+    api_key = { name = "key", value = "" },
+}
+stream = true
+
+[rates]
+[rates.from]
+endpoint = "api/stream/index_v1"
+params = {
+    args = '{"indexCode": "<>"}',
+}
+check_path = "$.result.percentages[0].price"
+reconcile_path = "$.result.interval.endTime"
+method = "Post"
+
+[rates.target]
+endpoint = "api/stream/index_v1"
+params = {
+    args = '{"indexCode": "<>"}',
+}
+check_path = "$.result.percentages[0].price"
+reconcile_path = "$.result.interval.endTime"
+method = "Post"
+```
+
+
 ## Output example
+
+### Success no diff
 
 ```sh
 ✔ Finished processing forecast endpoints.
@@ -53,4 +88,15 @@ params = {
 +==================================================+
 | forecast      | 200 OK | 200 OK | 0              |
 +---------------+--------+--------+----------------+
+```
+
+### Success with diff
+
+```sh
+✔ Finished processing rates endpoints.
++---------------+--------+--------+--------------------------------------------------------------------------------------------+----------------+
+| endpoint name | from   | target | diff                                                                                       | deltas (in ms) |
++===============================================================================================================================================+
+| rates         | 200 OK | 200 OK | Diff on key: 2026-06-21T21:39:45Z, origin: 1720.876666666667 vs target: 63859.471000000005 | 0              |
++---------------+--------+--------+--------------------------------------------------------------------------------------------+----------------+
 ```
