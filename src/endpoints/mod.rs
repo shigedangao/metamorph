@@ -3,7 +3,6 @@ use anyhow::Result;
 use client::{ClientEndpointComponent, ClientEndpointOutput};
 use reqwest::header::{HeaderMap, HeaderName};
 use serde::Deserialize;
-use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use tokio::task::JoinSet;
 use toml::Value;
@@ -51,10 +50,10 @@ pub enum InnerEndpointRequestResult {
 /// EndpointRequestResult represents the result of a request to an endpoint.
 #[derive(Default, Debug)]
 pub struct EndpointRequestResult {
-    pub from: String,
-    pub target: String,
+    pub from_status: String,
+    pub target_status: String,
     pub deltas: u128,
-    pub diff: Option<values::Diff>,
+    pub diff: Option<Vec<values::Diff>>,
 }
 
 impl Endpoints {
@@ -85,27 +84,23 @@ impl Endpoints {
     /// # Returns
     ///
     /// A `HashMap` where the key is the endpoint name and the value is the `BuildEndpoint` struct.
-    pub fn build_endpoints(&self) -> HashMap<String, BuildEndpoint> {
+    pub fn build_endpoints(self) -> HashMap<String, BuildEndpoint> {
         let mut endpoints = HashMap::new();
 
-        for (name, parsed) in &self._parsed_endpoints {
+        for (name, parsed) in self._parsed_endpoints {
             let (from, target) = parsed.template();
             let (from_body, target_body) = parsed.get_body();
 
             let build_endpoint = BuildEndpoint {
                 from: ClientEndpointComponent::new(
                     format!("{}/{}", self.origin_base_url, from),
-                    parsed.from.check_path.clone(),
-                    parsed.from.reconcile_path.clone(),
-                    parsed.from.method.clone(),
+                    parsed.from,
                     self.stream,
                     from_body,
                 ),
                 target: ClientEndpointComponent::new(
                     format!("{}/{}", self.bench_base_url, target),
-                    parsed.target.check_path.clone(),
-                    parsed.target.reconcile_path.clone(),
-                    parsed.target.method.clone(),
+                    parsed.target,
                     self.stream,
                     target_body,
                 ),
@@ -143,8 +138,8 @@ impl BuildEndpoint {
     ///
     /// # Arguments
     ///
-    /// * `name` - The name of the endpoint.
     /// * `value` - The value of the endpoint, as a `Value` from the TOML parser.
+    /// * `max_payload_size` - The maximum payload size for the endpoint.
     ///
     /// # Returns
     ///
@@ -154,59 +149,50 @@ impl BuildEndpoint {
 
         let from_client = client.clone();
         set.spawn(async move {
-            let res = self.from.clone().send(&from_client).await?;
+            let res = self.from.send(&from_client).await?;
 
             Ok(InnerEndpointRequestResult::From(res))
         });
 
         let target_client = client.clone();
         set.spawn(async move {
-            let res = self.target.clone().send(&target_client).await?;
+            let res = self.target.send(&target_client).await?;
 
             Ok(InnerEndpointRequestResult::Target(res))
         });
 
-        // store durations
-        let mut from_duration = 0;
-        let mut target_duration = 0;
+        let mut from_client_output = ClientEndpointOutput::default();
+        let mut target_client_output = ClientEndpointOutput::default();
 
-        // store node value
-        let mut from_nodes: Option<Vec<JsonValue>> = None;
-        let mut target_nodes: Option<Vec<JsonValue>> = None;
-
-        // store reconcile nodes
-        let mut from_reconcile_nodes: Option<Vec<JsonValue>> = None;
-        let mut target_reconcile_nodes: Option<Vec<JsonValue>> = None;
-
-        let mut endpoint_result = EndpointRequestResult::default();
-
+        // todo store clientoutput rather than some mut variables...
         while let Some(res) = set.join_next().await {
             match res?? {
                 InnerEndpointRequestResult::From(output) => {
-                    endpoint_result.from = output.status.to_string();
-                    from_duration = output.elapsed;
-                    from_nodes = output.nodes;
-                    from_reconcile_nodes = output.reconcile_nodes;
+                    from_client_output = output;
                 }
                 InnerEndpointRequestResult::Target(output) => {
-                    endpoint_result.target = output.status.to_string();
-                    target_duration = output.elapsed;
-                    target_nodes = output.nodes;
-                    target_reconcile_nodes = output.reconcile_nodes;
+                    target_client_output = output;
                 }
             }
         }
 
         // Calculating the duration difference between the two requests
-        endpoint_result.deltas = target_duration.saturating_sub(from_duration);
+        let mut endpoint_result = EndpointRequestResult {
+            deltas: target_client_output
+                .elapsed
+                .saturating_sub(from_client_output.elapsed),
+            from_status: from_client_output.status.to_string(),
+            target_status: target_client_output.status.to_string(),
+            ..Default::default()
+        };
 
         // Compare the diff between two vec of node values whenever provided
-        if let Some((f_nodes, t_nodes)) = from_nodes.zip(target_nodes) {
+        if let Some((f_nodes, t_nodes)) = from_client_output.nodes.zip(target_client_output.nodes) {
             let comparison_handle = ValueComparison::new(
-                f_nodes,
-                t_nodes,
-                from_reconcile_nodes,
-                target_reconcile_nodes,
+                &f_nodes,
+                &t_nodes,
+                from_client_output.reconcile_nodes,
+                target_client_output.reconcile_nodes,
             );
 
             endpoint_result.diff = comparison_handle.compare_values();

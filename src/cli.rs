@@ -6,27 +6,29 @@ use spinners::{Spinner, Spinners};
 use std::{collections::HashMap, time::Duration};
 use tokio::{fs, task::JoinSet};
 
+/// The main application struct.
 #[derive(Parser, Debug)]
 pub struct App {
     #[arg(short, long)]
     config: String,
 
-    #[arg(short, long)]
-    token: Option<String>,
+    #[arg(short, long, default_value = "15")]
+    read_timeout: u64,
 }
 
 impl App {
+    /// Runs the application, reading the config file and making requests to the endpoints.
     pub async fn run(&self) -> Result<()> {
         let bench = fs::read_to_string(&self.config).await?;
         let config = Endpoints::new(bench)?;
 
         // Get endpoints and headers from the config
-        let endpoints = config.build_endpoints();
         let headers = config.build_headers()?;
+        let endpoints = config.build_endpoints();
 
         let client = reqwest::ClientBuilder::new()
             .default_headers(headers)
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(self.read_timeout))
             .build()?;
 
         let mut set: JoinSet<Result<(String, EndpointRequestResult)>> = JoinSet::new();
@@ -34,6 +36,7 @@ impl App {
         // Run through each endpoint and make a request to it
         for (name, endpoint) in endpoints {
             let client = client.clone();
+
             set.spawn(async move {
                 let mut sp = Spinner::new(Spinners::Dots, format!("Running {name} endpoints..."));
 
@@ -71,17 +74,23 @@ impl App {
             "deltas (in ms)",
         ]);
 
-        results.iter().for_each(|(endpoint, res)| {
+        results.into_iter().for_each(|(endpoint, res)| {
             let diff = match &res.diff {
-                Some(Diff::Result(s)) => s.clone(),
-                Some(Diff::UnableToCompare) => "Unable to compare".to_string(),
+                Some(diffs) => diffs
+                    .iter()
+                    .map(|d| match d {
+                        Diff::Result(s) => s.clone(),
+                        Diff::UnableToCompare => "Unable to compare".to_string(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
                 None => "None".to_string(),
             };
 
             table.add_row(vec![
-                endpoint.clone(),
-                res.from.clone(),
-                res.target.clone(),
+                endpoint,
+                res.from_status,
+                res.target_status,
                 diff,
                 format!("{}", res.deltas),
             ]);

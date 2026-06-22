@@ -10,6 +10,7 @@ pub struct BenchEndpointComponent {
     pub target: Endpoint,
 }
 
+/// A parsed endpoint component containing the source and target endpoints.
 #[derive(Debug, Deserialize, Default, Clone)]
 pub enum SupportedMethod {
     #[default]
@@ -17,6 +18,7 @@ pub enum SupportedMethod {
     Post,
 }
 
+/// A parsed endpoint containing the endpoint URL, method, and parameters.
 #[derive(Debug, Deserialize)]
 pub struct Endpoint {
     endpoint: String,
@@ -28,6 +30,7 @@ pub struct Endpoint {
 }
 
 impl BenchEndpointComponent {
+    /// Returns the source and target endpoint templates with parameters replaced.
     pub fn template(&self) -> (String, String) {
         (
             replace_params(&self.from.endpoint, &self.from.params),
@@ -35,6 +38,7 @@ impl BenchEndpointComponent {
         )
     }
 
+    /// Returns the source and target endpoint bodies with parameters replaced.
     pub fn get_body(&self) -> (Option<String>, Option<String>) {
         let from_body = self.from.params.get(BODY_KEY);
         let target_body = self.target.params.get(BODY_KEY);
@@ -46,6 +50,12 @@ impl BenchEndpointComponent {
     }
 }
 
+/// Replaces the parameters in the given template with the values from the given parameters map.
+///
+/// # Arguments
+///
+/// * `template` - The template string to replace parameters in.
+/// * `params` - A map of parameter names to values to replace in the template.
 fn replace_params(template: &str, params: &HashMap<String, String>) -> String {
     let mut result = template.to_string();
 
