@@ -70,17 +70,17 @@ impl<'a> ValueComparison<'a> {
 
         // Otherwise get the keys from the from & target nodes which we'll use to compare the data
         let from_reconcile_keys = match &self.from_reconcile_node {
-            Some(k) => get_stringify_keys_from_values(&k),
+            Some(k) => get_stringify_keys_from_values(k),
             None => return Some(vec![Diff::UnableToCompare]),
         };
 
         let target_from_reconcile_keys = match &self.target_reconcile_node {
-            Some(k) => get_stringify_keys_from_values(&k),
+            Some(k) => get_stringify_keys_from_values(k),
             None => return Some(vec![Diff::UnableToCompare]),
         };
 
-        let from_map = match_keys_with_nodes(&self.from, &from_reconcile_keys);
-        let target_map = match_keys_with_nodes(&self.target, &target_from_reconcile_keys);
+        let from_map = match_keys_with_nodes(self.from, &from_reconcile_keys);
+        let target_map = match_keys_with_nodes(self.target, &target_from_reconcile_keys);
         let mut diffs = Vec::new();
 
         for (k, v) in &from_map {
@@ -119,7 +119,7 @@ impl<'a> ValueComparison<'a> {
 /// * `values` - A slice of [`Value`]s to extract stringify keys from.
 fn get_stringify_keys_from_values(values: &[Value]) -> Vec<String> {
     values
-        .into_iter()
+        .iter()
         .filter_map(|v| {
             let Value::String(s) = v else {
                 return None;
@@ -137,7 +137,7 @@ fn get_stringify_keys_from_values(values: &[Value]) -> Vec<String> {
 /// * `nodes` - A slice of [`Value`]s representing the nodes.
 /// * `keys` - A slice of [`String`]s representing the keys.
 fn match_keys_with_nodes(nodes: &[Value], keys: &[String]) -> HashMap<String, Value> {
-    keys.into_iter()
+    keys.iter()
         .enumerate()
         .filter_map(|(k, v)| {
             if let Some(node) = nodes.get(k) {

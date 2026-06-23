@@ -121,7 +121,7 @@ impl Endpoints {
         let mut headers = HeaderMap::new();
 
         if let Some(header_config) = &self.headers {
-            for (_, config) in header_config {
+            for config in header_config.values() {
                 headers.insert(
                     HeaderName::from_bytes(config.name.as_bytes())?,
                     config.value.parse()?,

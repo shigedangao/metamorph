@@ -1,7 +1,8 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
-const BODY_KEY: &'static str = "args";
+// Constant
+const BODY_KEY: &str = "args";
 
 // These structs are used after deserialization due to the dynamic endpoint structure after the flatten.
 #[derive(Debug, Deserialize)]

@@ -4,7 +4,7 @@ use futures::StreamExt;
 use reqwest::{Client, StatusCode};
 use reqwest_streams::{JsonStreamResponse, error::StreamBodyKind};
 use serde_json::Value;
-use std::{time::Instant, usize};
+use std::time::Instant;
 
 /// Represents a component of a client endpoint, including the URL, path, method, and body.
 #[derive(Debug, Clone)]
@@ -84,7 +84,7 @@ impl ClientEndpointComponent {
         let status = response.status();
 
         if let Some(check_path) = &self.check_path {
-            let path = serde_json_path::JsonPath::parse(&check_path)?;
+            let path = serde_json_path::JsonPath::parse(check_path)?;
             let body = response.json::<Value>().await?;
 
             let node = path.query(&body).exactly_one().unwrap_or_default();
@@ -159,9 +159,7 @@ impl ClientEndpointComponent {
                 }
                 Err(err) => match err.kind() {
                     // Ignore the error as it's due to the stream being closed due to the max length reached.
-                    StreamBodyKind::MaxLenReachedError | StreamBodyKind::CodecError => {
-                        println!("here")
-                    }
+                    StreamBodyKind::MaxLenReachedError | StreamBodyKind::CodecError => {}
                     _ => return Err(err.into()),
                 },
             }
