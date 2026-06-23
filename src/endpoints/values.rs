@@ -1,4 +1,3 @@
-use crate::endpoints::values::Diff::UnableToCompare;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -9,17 +8,26 @@ pub enum Diff {
     UnableToCompare,
 }
 
-pub struct ValueComparison {
-    from: Vec<Value>,
-    target: Vec<Value>,
+/// ValueComparison compares two sets of values from two endpoints.
+pub struct ValueComparison<'a> {
+    from: &'a [Value],
+    target: &'a [Value],
     from_reconcile_node: Option<Vec<Value>>,
     target_reconcile_node: Option<Vec<Value>>,
 }
 
-impl ValueComparison {
+impl<'a> ValueComparison<'a> {
+    /// Creates a new [`ValueComparison`] instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - A slice of [`Value`]s representing the values from the source endpoint.
+    /// * `target` - A slice of [`Value`]s representing the values from the target endpoint.
+    /// * `from_reconcile_node` - An optional [`Vec`] of [`Value`]s representing the reconcile node from the source endpoint.
+    /// * `target_reconcile_node` - An optional [`Vec`] of [`Value`]s representing the reconcile node from the target endpoint.
     pub fn new(
-        from: Vec<Value>,
-        target: Vec<Value>,
+        from: &'a [Value],
+        target: &'a [Value],
         from_reconcile_node: Option<Vec<Value>>,
         target_reconcile_node: Option<Vec<Value>>,
     ) -> Self {
@@ -31,13 +39,19 @@ impl ValueComparison {
         }
     }
 
-    pub fn compare_values(&self) -> Option<Diff> {
+    /// Compares the values from the source and target endpoints.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Vec<Diff>)` - A vector of [`Diff`]s representing the differences between the source and target endpoints.
+    /// * `None` - If the values could not be compared.
+    pub fn compare_values(&self) -> Option<Vec<Diff>> {
         // Single value comparison (unary)
         if self.from.len() == 1 && self.target.len() == 1 {
             return match (&self.from[0], &self.target[0]) {
                 (Value::String(f), Value::String(t)) => {
                     if f != t {
-                        return Some(Diff::Result(format!("Diff from {} vs {}", f, t)));
+                        return Some(vec![Diff::Result(format!("Diff from {} vs {}", f, t))]);
                     }
 
                     None
@@ -45,7 +59,7 @@ impl ValueComparison {
                 (Value::Number(f), Value::Number(t)) => {
                     let diff = t.as_f64().unwrap_or_default() - f.as_f64().unwrap_or_default();
                     if diff != 0.0 {
-                        return Some(Diff::Result(format!("Diff from {} vs {}", f, t)));
+                        return Some(vec![Diff::Result(format!("Diff from {} vs {}", f, t))]);
                     }
 
                     None
@@ -57,23 +71,24 @@ impl ValueComparison {
         // Otherwise get the keys from the from & target nodes which we'll use to compare the data
         let from_reconcile_keys = match &self.from_reconcile_node {
             Some(k) => get_stringify_keys_from_values(&k),
-            None => return Some(UnableToCompare),
+            None => return Some(vec![Diff::UnableToCompare]),
         };
 
         let target_from_reconcile_keys = match &self.target_reconcile_node {
             Some(k) => get_stringify_keys_from_values(&k),
-            None => return Some(UnableToCompare),
+            None => return Some(vec![Diff::UnableToCompare]),
         };
 
         let from_map = match_keys_with_nodes(&self.from, &from_reconcile_keys);
         let target_map = match_keys_with_nodes(&self.target, &target_from_reconcile_keys);
+        let mut diffs = Vec::new();
 
         for (k, v) in &from_map {
             if let Some(target_v) = target_map.get(k) {
                 match (v, target_v) {
                     (Value::String(s1), Value::String(s2)) => {
                         if s1 != s2 {
-                            return Some(Diff::Result(format!(
+                            diffs.push(Diff::Result(format!(
                                 "Diff on key: {}, origin: {} vs target: {}",
                                 k, s1, s2
                             )));
@@ -82,7 +97,7 @@ impl ValueComparison {
                     (Value::Number(f), Value::Number(t)) => {
                         let diff = t.as_f64().unwrap_or_default() - f.as_f64().unwrap_or_default();
                         if diff != 0.0 {
-                            return Some(Diff::Result(format!(
+                            diffs.push(Diff::Result(format!(
                                 "Diff on key: {}, origin: {} vs target: {}",
                                 k, t, f
                             )));
@@ -93,10 +108,15 @@ impl ValueComparison {
             }
         }
 
-        None
+        Some(diffs)
     }
 }
 
+/// Returns a list of stringify keys from a list of values.
+///
+/// # Arguments
+///
+/// * `values` - A slice of [`Value`]s to extract stringify keys from.
 fn get_stringify_keys_from_values(values: &[Value]) -> Vec<String> {
     values
         .into_iter()
@@ -110,6 +130,12 @@ fn get_stringify_keys_from_values(values: &[Value]) -> Vec<String> {
         .collect::<Vec<_>>()
 }
 
+/// Matches keys with nodes in a one-to-one fashion.
+///
+/// # Arguments
+///
+/// * `nodes` - A slice of [`Value`]s representing the nodes.
+/// * `keys` - A slice of [`String`]s representing the keys.
 fn match_keys_with_nodes(nodes: &[Value], keys: &[String]) -> HashMap<String, Value> {
     keys.into_iter()
         .enumerate()

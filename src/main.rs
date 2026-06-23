@@ -8,5 +8,7 @@ mod endpoints;
 async fn main() {
     let app = App::parse();
 
-    app.run().await.unwrap();
+    if let Err(err) = app.run().await {
+        eprintln!("{err}");
+    };
 }
