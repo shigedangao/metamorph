@@ -22,7 +22,7 @@ pub enum SupportedMethod {
 /// A parsed endpoint containing the endpoint URL, method, and parameters.
 #[derive(Debug, Deserialize)]
 pub struct Endpoint {
-    endpoint: String,
+    path: String,
     #[serde(default)]
     pub method: SupportedMethod,
     params: HashMap<String, String>,
@@ -34,8 +34,8 @@ impl BenchEndpointComponent {
     /// Returns the source and target endpoint templates with parameters replaced.
     pub fn template(&self) -> (String, String) {
         (
-            replace_params(&self.from.endpoint, &self.from.params),
-            replace_params(&self.target.endpoint, &self.target.params),
+            replace_params(&self.from.path, &self.from.params),
+            replace_params(&self.target.path, &self.target.params),
         )
     }
 

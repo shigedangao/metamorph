@@ -20,7 +20,7 @@ impl App {
     /// Runs the application, reading the config file and making requests to the endpoints.
     pub async fn run(&self) -> Result<()> {
         let bench = fs::read_to_string(&self.config).await?;
-        let config = Endpoints::new(bench)?;
+        let config = Endpoints::new(&bench)?;
 
         // Get endpoints and headers from the config
         let headers = config.build_headers()?;

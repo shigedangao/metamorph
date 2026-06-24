@@ -7,7 +7,7 @@ stream = true
 
 [rates]
 [rates.from]
-endpoint = "api/stream/index_v1"
+path = "api/stream/index_v1"
 params = {
     args = '{"indexCode": "KK_BRR_BTCUSD"}',
 }
@@ -16,7 +16,7 @@ reconcile_path = "$.result.interval.endTime"
 method = "Post"
 
 [rates.target]
-endpoint = "api/stream/index_v1"
+path = "api/stream/index_v1"
 params = {
     args = '{"indexCode": "KK_BRR_ETHUSD"}',
 }

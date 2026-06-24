@@ -66,8 +66,8 @@ impl Endpoints {
     /// # Returns
     ///
     /// A `Result` containing the parsed `Endpoints` struct, or an error if parsing fails.
-    pub fn new(config: String) -> Result<Self> {
-        let mut endpoints: Endpoints = toml::from_str(&config)?;
+    pub fn new(config: &str) -> Result<Self> {
+        let mut endpoints: Endpoints = toml::from_str(config)?;
 
         // Loop through the table of the endpoints and parse each endpoint into a BenchEndpointComponent
         for (name, value) in &endpoints._endpoints {

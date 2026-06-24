@@ -73,7 +73,7 @@ impl ClientEndpointComponent {
             SupportedMethod::Post => {
                 client
                     .post(&self.url)
-                    .body(self.body.to_owned().unwrap_or_default())
+                    .body(self.body.clone().unwrap_or_default())
                     .send()
                     .await?
             }
@@ -131,7 +131,7 @@ impl ClientEndpointComponent {
                 .json_nl_stream::<Value>(usize::MAX),
             SupportedMethod::Post => client
                 .post(&self.url)
-                .body(self.body.to_owned().unwrap_or_default())
+                .body(self.body.clone().unwrap_or_default())
                 .send()
                 .await?
                 .json_nl_stream::<Value>(usize::MAX),
@@ -160,7 +160,7 @@ impl ClientEndpointComponent {
                 Err(err) => match err.kind() {
                     // Ignore the error as it's due to the stream being closed due to the max length reached.
                     StreamBodyKind::MaxLenReachedError | StreamBodyKind::CodecError => {}
-                    _ => return Err(err.into()),
+                    StreamBodyKind::InputOutputError => return Err(err.into()),
                 },
             }
         }

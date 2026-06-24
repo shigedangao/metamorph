@@ -5,7 +5,7 @@ headers = {}
 [forecast]
 
 [forecast.from]
-endpoint = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
+path = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
 params = {
     lat = "48.85",
     lon = "2.35",
@@ -16,7 +16,7 @@ params = {
 }
 
 [forecast.target]
-endpoint = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
+path = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
 params = {
     lat = "48.85",
     lon = "2.35",

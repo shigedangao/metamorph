@@ -10,5 +10,5 @@ async fn main() {
 
     if let Err(err) = app.run().await {
         eprintln!("{err}");
-    };
+    }
 }
