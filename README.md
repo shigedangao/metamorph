@@ -1,6 +1,10 @@
 # Metamorph
 
-Just a tool to bench 2 endpoints and see the deltas between them.
+<p align="center">
+  <img src="https://www.pokepedia.fr/images/e/e3/M%C3%A9tamorph-RFVF.png" width="45%" />
+</p>
+
+Just a tool to bench multiple endpoints and see the deltas between each other.
 
 ## Run it
 
