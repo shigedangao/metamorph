@@ -18,12 +18,18 @@ struct HeaderConfig {
     name: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct HeadersParams {
+    origin: HashMap<String, HeaderConfig>,
+    bench: HashMap<String, HeaderConfig>,
+}
+
 /// Represents a parsed endpoint component.
 #[derive(Debug, Deserialize)]
 pub struct Endpoints {
     origin_base_url: String,
     bench_base_url: String,
-    headers: Option<HashMap<String, HeaderConfig>>,
+    headers: Option<HeadersParams>,
     #[serde(default)]
     stream: bool,
 
@@ -117,19 +123,29 @@ impl Endpoints {
     /// # Returns
     ///
     /// A `Result` containing the `HeaderMap`, or an error if building fails.
-    pub fn build_headers(&self) -> Result<HeaderMap> {
-        let mut headers = HeaderMap::new();
+    pub fn build_headers(&self) -> Result<(HeaderMap, HeaderMap)> {
+        let mut origin_headers = HeaderMap::new();
+        let mut target_headers = HeaderMap::new();
 
         if let Some(header_config) = &self.headers {
-            for config in header_config.values() {
-                headers.insert(
-                    HeaderName::from_bytes(config.name.as_bytes())?,
-                    config.value.parse()?,
+            for (o_config, t_config) in header_config
+                .origin
+                .values()
+                .zip(header_config.bench.values())
+            {
+                origin_headers.insert(
+                    HeaderName::from_bytes(o_config.name.as_bytes())?,
+                    o_config.value.parse()?,
+                );
+
+                target_headers.insert(
+                    HeaderName::from_bytes(t_config.name.as_bytes())?,
+                    t_config.value.parse()?,
                 );
             }
         }
 
-        Ok(headers)
+        Ok((origin_headers, target_headers))
     }
 }
 
@@ -144,17 +160,21 @@ impl BuildEndpoint {
     /// # Returns
     ///
     /// A `Result` containing the parsed `BuildEndpoint` struct, or an error if parsing fails.
-    pub async fn run(self, client: reqwest::Client) -> Result<EndpointRequestResult> {
+    pub async fn run(
+        self,
+        o_client: reqwest::Client,
+        t_client: reqwest::Client,
+    ) -> Result<EndpointRequestResult> {
         let mut set: JoinSet<Result<InnerEndpointRequestResult>> = JoinSet::new();
 
-        let from_client = client.clone();
+        let from_client = o_client.clone();
         set.spawn(async move {
             let res = self.from.send(&from_client).await?;
 
             Ok(InnerEndpointRequestResult::From(res))
         });
 
-        let target_client = client.clone();
+        let target_client = t_client.clone();
         set.spawn(async move {
             let res = self.target.send(&target_client).await?;
 

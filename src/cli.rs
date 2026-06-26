@@ -23,11 +23,16 @@ impl App {
         let config = Endpoints::new(&bench)?;
 
         // Get endpoints and headers from the config
-        let headers = config.build_headers()?;
+        let (origin_headers, target_headers) = config.build_headers()?;
         let endpoints = config.build_endpoints();
 
-        let client = reqwest::ClientBuilder::new()
-            .default_headers(headers)
+        let origin_client = reqwest::ClientBuilder::new()
+            .default_headers(origin_headers)
+            .timeout(Duration::from_secs(self.read_timeout))
+            .build()?;
+
+        let target_client = reqwest::ClientBuilder::new()
+            .default_headers(target_headers)
             .timeout(Duration::from_secs(self.read_timeout))
             .build()?;
 
@@ -35,12 +40,13 @@ impl App {
 
         // Run through each endpoint and make a request to it
         for (name, endpoint) in endpoints {
-            let client = client.clone();
+            let o_client = origin_client.clone();
+            let t_client = target_client.clone();
 
             set.spawn(async move {
                 let mut sp = Spinner::new(Spinners::Dots, format!("Running {name} endpoints..."));
 
-                let res = match endpoint.run(client).await {
+                let res = match endpoint.run(o_client, t_client).await {
                     Ok(res) => res,
                     Err(e) => {
                         sp.stop_and_persist(

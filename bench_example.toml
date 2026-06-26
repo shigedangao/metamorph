@@ -1,6 +1,5 @@
 origin_base_url = "https://api.open-meteo.com"
 bench_base_url = "https://api.open-meteo.com"
-headers = {}
 
 [forecast]
 

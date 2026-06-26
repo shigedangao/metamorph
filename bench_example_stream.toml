@@ -1,7 +1,8 @@
 origin_base_url = "https://<example>"
 bench_base_url = "https://<example>"
 headers = {
-    api_key = { name = "key", value = "xxxx" },
+    origin = { name = "key", value = "xxxx" },
+    bench = { name = "key", value = "xxxx" },
 }
 stream = true
 
