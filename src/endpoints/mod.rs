@@ -128,16 +128,14 @@ impl Endpoints {
         let mut target_headers = HeaderMap::new();
 
         if let Some(header_config) = &self.headers {
-            for (o_config, t_config) in header_config
-                .origin
-                .values()
-                .zip(header_config.bench.values())
-            {
+            for o_config in header_config.origin.values() {
                 origin_headers.insert(
                     HeaderName::from_bytes(o_config.name.as_bytes())?,
                     o_config.value.parse()?,
                 );
+            }
 
+            for t_config in header_config.bench.values() {
                 target_headers.insert(
                     HeaderName::from_bytes(t_config.name.as_bytes())?,
                     t_config.value.parse()?,
@@ -185,7 +183,6 @@ impl BuildEndpoint {
         let mut from_client_output = ClientEndpointOutput::default();
         let mut target_client_output = ClientEndpointOutput::default();
 
-        // todo store clientoutput rather than some mut variables...
         while let Some(res) = set.join_next().await {
             match res?? {
                 InnerEndpointRequestResult::From(output) => {
