@@ -1,0 +1,18 @@
+exclude = ["bench.toml", "bench_stream.toml"]
+
+[formatting]
+align_entries = false
+align_comments = true
+array_trailing_comma = true
+array_auto_expand = true
+array_auto_collapse = false
+compact_arrays = true
+compact_inline_tables = false
+column_width = 100
+indent_string = "    "
+reorder_keys = false
+
+[[rule]]
+keys = ["*"]
+[rule.formatting]
+reorder_keys = false

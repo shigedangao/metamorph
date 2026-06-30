@@ -5,22 +5,22 @@ bench_base_url = "https://api.open-meteo.com"
 
 [forecast.from]
 path = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
-params = {
-    lat = "48.85",
-    lon = "2.35",
-    hourly = "temperature_2m",
-    start = "2026-06-19",
-    end = "2026-06-20",
-    unit = "celsius",
-}
+
+[forecast.from.params]
+lat = "48.85"
+lon = "2.35"
+hourly = "temperature_2m"
+start = "2026-06-19"
+end = "2026-06-20"
+unit = "celsius"
 
 [forecast.target]
 path = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
-params = {
-    lat = "48.85",
-    lon = "2.35",
-    hourly = "temperature_2m",
-    start = "2026-06-19",
-    end = "2026-06-20",
-    unit = "fahrenheit",
-}
+
+[forecast.target.params]
+lat = "48.85"
+lon = "2.35"
+hourly = "temperature_2m"
+start = "2026-06-19"
+end = "2026-06-20"
+unit = "fahrenheit"

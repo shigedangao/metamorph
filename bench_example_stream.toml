@@ -6,21 +6,26 @@ headers = {
 }
 stream = true
 
+[headers.api_key]
+name = "key"
+value = "xxxx"
+
 [rates]
+
 [rates.from]
 path = "api/stream/index_v1"
-params = {
-    args = '{"indexCode": "KK_BRR_BTCUSD"}',
-}
+method = "Post"
 check_path = "$.result.percentages[0].price"
 reconcile_path = "$.result.interval.endTime"
-method = "Post"
+
+[rates.from.params]
+args = '{"indexCode": "KK_BRR_BTCUSD"}'
 
 [rates.target]
 path = "api/stream/index_v1"
-params = {
-    args = '{"indexCode": "KK_BRR_ETHUSD"}',
-}
+method = "Post"
 check_path = "$.result.percentages[0].price"
 reconcile_path = "$.result.interval.endTime"
-method = "Post"
+
+[rates.target.params]
+args = '{"indexCode": "KK_BRR_ETHUSD"}'
