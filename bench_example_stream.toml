@@ -2,11 +2,11 @@ origin_base_url = "https://<example>"
 bench_base_url = "https://<example>"
 stream = true
 
-[headers]
-origin = { name = "key", value = "xxxx" }
-bench = { name = "key", value = "xxxx" }
+[headers.origin.api_key]
+name = "key"
+value = "xxxx"
 
-[headers.api_key]
+[headers.bench.api_key]
 name = "key"
 value = "xxxx"
 

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 /// Diff represents the difference between two endpoints.
 #[derive(Debug)]
 pub enum Diff {
-    Result(String),
+    Output(String),
     UnableToCompare,
 }
 
@@ -51,7 +51,7 @@ impl<'a> ValueComparison<'a> {
             return match (&self.from[0], &self.target[0]) {
                 (Value::String(f), Value::String(t)) => {
                     if f != t {
-                        return Some(vec![Diff::Result(format!("Diff from {f} vs {t}"))]);
+                        return Some(vec![Diff::Output(format!("Diff from {f} vs {t}"))]);
                     }
 
                     None
@@ -59,7 +59,7 @@ impl<'a> ValueComparison<'a> {
                 (Value::Number(f), Value::Number(t)) => {
                     let diff = t.as_f64().unwrap_or_default() - f.as_f64().unwrap_or_default();
                     if diff != 0.0 {
-                        return Some(vec![Diff::Result(format!("Diff from {f} vs {t}"))]);
+                        return Some(vec![Diff::Output(format!("Diff from {f} vs {t}"))]);
                     }
 
                     None
@@ -88,7 +88,7 @@ impl<'a> ValueComparison<'a> {
                 match (v, target_v) {
                     (Value::String(s1), Value::String(s2)) => {
                         if s1 != s2 {
-                            diffs.push(Diff::Result(format!(
+                            diffs.push(Diff::Output(format!(
                                 "Diff on key: {k}, origin: {s1} vs target: {s2}"
                             )));
                         }
@@ -96,7 +96,7 @@ impl<'a> ValueComparison<'a> {
                     (Value::Number(f), Value::Number(t)) => {
                         let diff = t.as_f64().unwrap_or_default() - f.as_f64().unwrap_or_default();
                         if diff != 0.0 {
-                            diffs.push(Diff::Result(format!(
+                            diffs.push(Diff::Output(format!(
                                 "Diff on key: {k}, origin: {f} vs target: {t}"
                             )));
                         };

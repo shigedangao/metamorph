@@ -14,6 +14,9 @@ pub struct App {
 
     #[arg(short, long, default_value = "15")]
     read_timeout: u64,
+
+    #[arg(short, long, default_value = "1024")]
+    stream_max_payload: usize,
 }
 
 impl App {
@@ -42,11 +45,12 @@ impl App {
         for (name, endpoint) in endpoints {
             let o_client = origin_client.clone();
             let t_client = target_client.clone();
+            let stream_max_payload = self.stream_max_payload;
 
             set.spawn(async move {
                 let mut sp = Spinner::new(Spinners::Dots, format!("Running {name} endpoints..."));
 
-                let res = match endpoint.run(o_client, t_client).await {
+                let res = match endpoint.run(o_client, t_client, stream_max_payload).await {
                     Ok(res) => res,
                     Err(e) => {
                         sp.stop_and_persist(
@@ -85,7 +89,7 @@ impl App {
                 Some(diffs) => diffs
                     .iter()
                     .map(|d| match d {
-                        Diff::Result(s) => s.clone(),
+                        Diff::Output(s) => s.clone(),
                         Diff::UnableToCompare => "Unable to compare".to_string(),
                     })
                     .collect::<Vec<_>>()

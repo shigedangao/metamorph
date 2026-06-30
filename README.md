@@ -1,7 +1,7 @@
 # Metamorph
 
 <p align="center">
-  <img src="https://www.pokepedia.fr/images/e/e3/M%C3%A9tamorph-RFVF.png" width="45%" />
+  <img src="https://www.pokepedia.fr/images/e/e3/M%C3%A9tamorph-RFVF.png" width="35%" />
 </p>
 
 Just a tool to bench multiple endpoints and see the deltas between each other.
@@ -9,10 +9,18 @@ Just a tool to bench multiple endpoints and see the deltas between each other.
 ## Run it
 
 ```bash
-cargo run --release  -- --config bench_example.toml
+cargo run --release -- --config bench_example.toml
 ```
 
-## Configuration 
+### Options
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--config` | `-c` | — | Path to the TOML config file (required) |
+| `--read-timeout` | `-r` | `15` | HTTP read timeout in seconds |
+| `--stream-max-payload` | `-s` | `1024` | Maximum payload size for stream endpoints |
+
+## Configuration
 
 ### Unary
 
@@ -20,32 +28,30 @@ cargo run --release  -- --config bench_example.toml
 # Base URLs for the origin and benchmark endpoints
 origin_base_url = "https://api.open-meteo.com"
 bench_base_url = "https://api.open-meteo.com"
-headers = {}
 
-# Endpoint configuration
 [forecast]
 
 [forecast.from]
-endpoint = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
-params = {
-    lat = "48.85",
-    lon = "2.35",
-    hourly = "temperature_2m",
-    start = "2026-06-19",
-    end = "2026-06-20",
-    unit = "celsius",
-}
+path = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
+
+[forecast.from.params]
+lat = "48.85"
+lon = "2.35"
+hourly = "temperature_2m"
+start = "2026-06-19"
+end = "2026-06-20"
+unit = "celsius"
 
 [forecast.target]
-endpoint = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
-params = {
-    lat = "48.85",
-    lon = "2.35",
-    hourly = "temperature_2m",
-    start = "2026-06-19",
-    end = "2026-06-20",
-    unit = "fahrenheit",
-}
+path = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
+
+[forecast.target.params]
+lat = "48.85"
+lon = "2.35"
+hourly = "temperature_2m"
+start = "2026-06-19"
+end = "2026-06-20"
+unit = "fahrenheit"
 
 # Then could be more below...
 ```
@@ -53,33 +59,38 @@ params = {
 ### Stream
 
 ```toml
-origin_base_url = "https://endpoint"
-bench_base_url = "https://endpoint"
-headers = {
-    api_key = { name = "key", value = "" },
-}
+origin_base_url = "https://<example>"
+bench_base_url = "https://<example>"
 stream = true
 
+[headers.origin.api_key]
+name = "key"
+value = "xxxx"
+
+[headers.bench.api_key]
+name = "key"
+value = "xxxx"
+
 [rates]
+
 [rates.from]
-endpoint = "api/stream/index_v1"
-params = {
-    args = '{"indexCode": "<>"}',
-}
+path = "api/stream/index_v1"
+method = "Post"
 check_path = "$.result.percentages[0].price"
 reconcile_path = "$.result.interval.endTime"
-method = "Post"
+
+[rates.from.params]
+args = '{"indexCode": "KK_BRR_BTCUSD"}'
 
 [rates.target]
-endpoint = "api/stream/index_v1"
-params = {
-    args = '{"indexCode": "<>"}',
-}
+path = "api/stream/index_v1"
+method = "Post"
 check_path = "$.result.percentages[0].price"
 reconcile_path = "$.result.interval.endTime"
-method = "Post"
-```
 
+[rates.target.params]
+args = '{"indexCode": "KK_BRR_ETHUSD"}'
+```
 
 ## Output example
 
@@ -87,11 +98,11 @@ method = "Post"
 
 ```sh
 ✔ Finished processing forecast endpoints.
-+---------------+--------+--------+----------------+
-| endpoint name | from   | target | deltas (in ms) |
-+==================================================+
-| forecast      | 200 OK | 200 OK | 0              |
-+---------------+--------+--------+----------------+
++---------------+--------+--------+------+----------------+
+| endpoint name | from   | target | diff | deltas (in ms) |
++=========================================================+
+| forecast      | 200 OK | 200 OK | None | 5              |
++---------------+--------+--------+------+----------------+
 ```
 
 ### Success with diff

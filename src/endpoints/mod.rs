@@ -164,19 +164,20 @@ impl BuildEndpoint {
         self,
         o_client: reqwest::Client,
         t_client: reqwest::Client,
+        stream_max_payload: usize,
     ) -> Result<EndpointRequestResult> {
         let mut set: JoinSet<Result<InnerEndpointRequestResult>> = JoinSet::new();
 
         let from_client = o_client.clone();
         set.spawn(async move {
-            let res = self.from.send(&from_client).await?;
+            let res = self.from.send(&from_client, stream_max_payload).await?;
 
             Ok(InnerEndpointRequestResult::From(res))
         });
 
         let target_client = t_client.clone();
         set.spawn(async move {
-            let res = self.target.send(&target_client).await?;
+            let res = self.target.send(&target_client, stream_max_payload).await?;
 
             Ok(InnerEndpointRequestResult::Target(res))
         });

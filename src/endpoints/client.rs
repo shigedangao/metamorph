@@ -51,9 +51,14 @@ impl ClientEndpointComponent {
     /// # Arguments
     ///
     /// * `client` - The HTTP client to use for the request.
-    pub async fn send(&self, client: &Client) -> Result<ClientEndpointOutput> {
+    /// * `stream_max_payload` - The maximum payload size for stream endpoints.
+    pub async fn send(
+        &self,
+        client: &Client,
+        stream_max_payload: usize,
+    ) -> Result<ClientEndpointOutput> {
         match self.stream {
-            true => self.run_stream_request(client).await,
+            true => self.run_stream_request(client, stream_max_payload).await,
             false => self.run_unary_request(client).await,
         }
     }
@@ -110,7 +115,11 @@ impl ClientEndpointComponent {
     /// # Arguments
     ///
     /// * `client` - The HTTP client to use for the request.
-    async fn run_stream_request(&self, client: &Client) -> Result<ClientEndpointOutput> {
+    async fn run_stream_request(
+        &self,
+        client: &Client,
+        stream_max_payload: usize,
+    ) -> Result<ClientEndpointOutput> {
         // Parse the check_path if it exists
         let check_path = self
             .check_path
@@ -128,13 +137,13 @@ impl ClientEndpointComponent {
                 .get(&self.url)
                 .send()
                 .await?
-                .json_nl_stream::<Value>(usize::MAX),
+                .json_nl_stream::<Value>(stream_max_payload),
             SupportedMethod::Post => client
                 .post(&self.url)
                 .body(self.body.clone().unwrap_or_default())
                 .send()
                 .await?
-                .json_nl_stream::<Value>(usize::MAX),
+                .json_nl_stream::<Value>(stream_max_payload),
         };
 
         let mut nodes = Vec::new();

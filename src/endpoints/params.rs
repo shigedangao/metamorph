@@ -61,7 +61,8 @@ fn replace_params(template: &str, params: &HashMap<String, String>) -> String {
     let mut result = template.to_string();
 
     for (key, value) in params {
-        result = result.replace(&format!("{{{key}}}"), value);
+        // we use `replacen` to replace only the first occurrence of each parameter
+        result = result.replacen(&format!("{{{key}}}"), value, 1);
     }
 
     result
