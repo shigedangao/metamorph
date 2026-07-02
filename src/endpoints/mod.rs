@@ -163,6 +163,7 @@ impl BuildEndpoint {
         o_client: reqwest::Client,
         t_client: reqwest::Client,
         stream_max_payload: usize,
+        relative_diff: Option<f64>,
     ) -> Result<EndpointRequestResult> {
         let mut set: JoinSet<Result<InnerEndpointRequestResult>> = JoinSet::new();
 
@@ -213,7 +214,8 @@ impl BuildEndpoint {
                 target_client_output.reconcile_nodes,
             );
 
-            endpoint_result.diff = comparison_handle.compare_values();
+            endpoint_result.diff =
+                comparison_handle.compare_values(relative_diff.unwrap_or_default());
         }
 
         Ok(endpoint_result)
