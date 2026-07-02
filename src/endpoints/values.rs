@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{Number, Value};
 use std::collections::HashMap;
 
 /// Diff represents the difference between two endpoints.
@@ -45,7 +45,9 @@ impl<'a> ValueComparison<'a> {
     ///
     /// * `Some(Vec<Diff>)` - A vector of [`Diff`]s representing the differences between the source and target endpoints.
     /// * `None` - If the values could not be compared.
-    pub fn compare_values(&self) -> Option<Vec<Diff>> {
+    pub fn compare_values(&self, relative_diff: f64) -> Option<Vec<Diff>> {
+        let mut diffs = Vec::new();
+
         // Single value comparison (unary)
         if self.from.len() == 1 && self.target.len() == 1 {
             return match (&self.from[0], &self.target[0]) {
@@ -57,12 +59,11 @@ impl<'a> ValueComparison<'a> {
                     None
                 }
                 (Value::Number(f), Value::Number(t)) => {
-                    let diff = t.as_f64().unwrap_or_default() - f.as_f64().unwrap_or_default();
-                    if diff != 0.0 {
-                        return Some(vec![Diff::Output(format!("Diff from {f} vs {t}"))]);
-                    }
-
-                    None
+                    return compare_numbers(f, t, relative_diff, |fv, tv, diff| {
+                        Some(vec![Diff::Output(format!(
+                            "Diff from {fv} vs {tv} with a relative diff of {diff}%"
+                        ))])
+                    });
                 }
                 _ => None,
             };
@@ -81,7 +82,6 @@ impl<'a> ValueComparison<'a> {
 
         let from_map = match_keys_with_nodes(self.from, &from_reconcile_keys);
         let target_map = match_keys_with_nodes(self.target, &target_from_reconcile_keys);
-        let mut diffs = Vec::new();
 
         for (k, v) in &from_map {
             if let Some(target_v) = target_map.get(k) {
@@ -94,12 +94,13 @@ impl<'a> ValueComparison<'a> {
                         }
                     }
                     (Value::Number(f), Value::Number(t)) => {
-                        let diff = t.as_f64().unwrap_or_default() - f.as_f64().unwrap_or_default();
-                        if diff != 0.0 {
+                        compare_numbers(f, t, relative_diff, |fv, tv, diff| {
                             diffs.push(Diff::Output(format!(
-                                "Diff on key: {k}, origin: {f} vs target: {t}"
+                                "Diff on key: {k}, origin: {fv} vs target: {tv} with a relative diff of {diff}%"
                             )));
-                        };
+
+                            None
+                        });
                     }
                     _ => {}
                 }
@@ -145,4 +146,30 @@ fn match_keys_with_nodes(nodes: &[Value], keys: &[String]) -> HashMap<String, Va
             None
         })
         .collect::<HashMap<_, _>>()
+}
+
+/// Compares two numbers and returns a list of [`Diff`]s if the difference exceeds the relative diff threshold.
+///
+/// # Arguments
+///
+/// * `f` - The first number to compare.
+/// * `t` - The second number to compare.
+/// * `relative_diff` - The relative difference threshold in percentage terms.
+/// * `cb` - A callback function that is invoked if the difference exceeds the threshold.
+fn compare_numbers<F: FnMut(f64, f64, f64) -> Option<Vec<Diff>>>(
+    f: &Number,
+    t: &Number,
+    relative_diff: f64,
+    mut cb: F,
+) -> Option<Vec<Diff>> {
+    let f_nb = f.as_f64().unwrap_or_default();
+    let t_nb = t.as_f64().unwrap_or_default();
+
+    // Compute the relative difference between the two numbers in percentage terms
+    let diff = (f_nb - t_nb) / f_nb * 100.;
+    if diff > relative_diff {
+        return cb(f_nb, t_nb, diff);
+    }
+
+    None
 }

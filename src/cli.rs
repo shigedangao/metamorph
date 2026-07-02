@@ -15,13 +15,16 @@ pub struct App {
     #[arg(short, long, default_value = "15")]
     read_timeout: u64,
 
-    #[arg(short, long, default_value = "1024")]
+    #[arg(short, long, default_value = "2048")]
     stream_max_payload: usize,
+
+    #[arg(short, long)]
+    relative_diff: Option<f64>,
 }
 
 impl App {
     /// Runs the application, reading the config file and making requests to the endpoints.
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(self) -> Result<()> {
         let bench = fs::read_to_string(&self.config).await?;
         let config = Endpoints::new(&bench)?;
 
@@ -45,12 +48,19 @@ impl App {
         for (name, endpoint) in endpoints {
             let o_client = origin_client.clone();
             let t_client = target_client.clone();
-            let stream_max_payload = self.stream_max_payload;
 
             set.spawn(async move {
                 let mut sp = Spinner::new(Spinners::Dots, format!("Running {name} endpoints..."));
 
-                let res = match endpoint.run(o_client, t_client, stream_max_payload).await {
+                let res = match endpoint
+                    .run(
+                        o_client,
+                        t_client,
+                        self.stream_max_payload,
+                        self.relative_diff,
+                    )
+                    .await
+                {
                     Ok(res) => res,
                     Err(e) => {
                         sp.stop_and_persist(
