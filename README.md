@@ -19,6 +19,7 @@ cargo run --release -- --config bench_example.toml
 | `--config` | `-c` | — | Path to the TOML config file (required) |
 | `--read-timeout` | `-r` | `15` | HTTP read timeout in seconds |
 | `--stream-max-payload` | `-s` | `1024` | Maximum payload size for stream endpoints |
+| `--relative-diff` | `-d` | `10` | Maximum relative difference threshold in percentage terms for value comparisons |
 
 ## Configuration
 
