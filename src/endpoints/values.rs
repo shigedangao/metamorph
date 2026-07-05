@@ -94,7 +94,7 @@ impl<'a> ValueComparison<'a> {
                         }
                     }
                     (Value::Number(f), Value::Number(t)) => {
-                        compare_numbers(&f, &t, relative_diff, |fv, tv, diff| {
+                        compare_numbers(f, t, relative_diff, |fv, tv, diff| {
                             diffs.push(Diff::Output(format!(
                                 "Diff detected on key: {k}\n- origin: {fv}\n- target: {tv}\nwith a relative diff of {diff}%\n"
                             )));
