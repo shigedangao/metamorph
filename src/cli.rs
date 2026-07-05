@@ -1,5 +1,5 @@
 use crate::endpoints::{EndpointRequestResult, Endpoints, values::Diff};
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use clap::Parser;
 use comfy_table::Table;
 use spinners::{Spinner, Spinners};
@@ -25,7 +25,11 @@ pub struct App {
 impl App {
     /// Runs the application, reading the config file and making requests to the endpoints.
     pub async fn run(self) -> Result<()> {
-        let bench = fs::read_to_string(&self.config).await?;
+        let bench = fs::read_to_string(&self.config)
+            .await
+            .map_err(|err| anyhow!("Unable to read the config file due to {err}"))?;
+
+        // Parse the config file into an Endpoints struct
         let config = Endpoints::new(&bench)?;
 
         // Get endpoints and headers from the config

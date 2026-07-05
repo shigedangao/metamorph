@@ -61,7 +61,7 @@ impl<'a> ValueComparison<'a> {
                 (Value::Number(f), Value::Number(t)) => {
                     return compare_numbers(f, t, relative_diff, |fv, tv, diff| {
                         Some(vec![Diff::Output(format!(
-                            "Diff from {fv} vs {tv} with a relative diff of {diff}%"
+                            "Diff detected: \n- from: {fv}\n- target: {tv}\n with a relative diff of {diff}%"
                         ))])
                     });
                 }
@@ -94,9 +94,9 @@ impl<'a> ValueComparison<'a> {
                         }
                     }
                     (Value::Number(f), Value::Number(t)) => {
-                        compare_numbers(f, t, relative_diff, |fv, tv, diff| {
+                        compare_numbers(&f, &t, relative_diff, |fv, tv, diff| {
                             diffs.push(Diff::Output(format!(
-                                "Diff on key: {k}, origin: {fv} vs target: {tv} with a relative diff of {diff}%"
+                                "Diff detected on key: {k}\n- origin: {fv}\n- target: {tv}\nwith a relative diff of {diff}%\n"
                             )));
 
                             None
@@ -135,12 +135,15 @@ fn get_stringify_keys_from_values(values: &[Value]) -> Vec<String> {
 ///
 /// * `nodes` - A slice of [`Value`]s representing the nodes.
 /// * `keys` - A slice of [`String`]s representing the keys.
-fn match_keys_with_nodes(nodes: &[Value], keys: &[String]) -> HashMap<String, Value> {
+fn match_keys_with_nodes<'a>(
+    nodes: &'a [Value],
+    keys: &'a [String],
+) -> HashMap<&'a String, &'a Value> {
     keys.iter()
         .enumerate()
         .filter_map(|(k, v)| {
             if let Some(node) = nodes.get(k) {
-                return Some((v.clone(), node.clone()));
+                return Some((v, node));
             }
 
             None
