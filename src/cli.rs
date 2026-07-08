@@ -3,7 +3,7 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use comfy_table::Table;
 use spinners::{Spinner, Spinners};
-use std::{collections::HashMap, time::Duration};
+use std::{collections::BTreeMap, time::Duration};
 use tokio::{fs, task::JoinSet};
 
 /// The main application struct.
@@ -69,10 +69,10 @@ impl App {
                     Err(e) => {
                         sp.stop_and_persist(
                             "✖",
-                            format!("Failed to process {name} endpoints: {e}"),
+                            format!("Failed to process {name} endpoint due to: {e}"),
                         );
 
-                        return Ok((name, EndpointRequestResult::default()));
+                        return Err(anyhow!(name));
                     }
                 };
                 sp.stop_and_persist("✔", format!("Finished processing {name} endpoints."));
@@ -81,11 +81,16 @@ impl App {
             });
         }
 
-        let mut results: HashMap<String, EndpointRequestResult> = HashMap::new();
+        // Use a BTreeMap to sort results by endpoint name
+        let mut results: BTreeMap<String, EndpointRequestResult> = BTreeMap::new();
         while let Some(res) = set.join_next().await {
-            let (name, request_res) = res??;
-
-            results.insert(name, request_res);
+            match res? {
+                Ok((name, request_res)) => results.insert(name, request_res),
+                Err(name) => {
+                    // The error returns the name of the endpoint that has failed. We don't really care about the reason when displaying in the table.
+                    results.insert(name.to_string(), EndpointRequestResult::default_error())
+                }
+            };
         }
 
         // Build the results
@@ -98,7 +103,7 @@ impl App {
             "deltas (in ms)",
         ]);
 
-        results.into_iter().for_each(|(endpoint, res)| {
+        for (endpoint, res) in results {
             let diff = match &res.diff {
                 Some(diffs) => diffs
                     .iter()
@@ -118,7 +123,7 @@ impl App {
                 diff,
                 format!("{}", res.deltas),
             ]);
-        });
+        }
 
         println!("{table}");
 

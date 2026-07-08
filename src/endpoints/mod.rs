@@ -1,4 +1,7 @@
-use crate::endpoints::{params::BenchEndpointComponent, values::ValueComparison};
+use crate::endpoints::{
+    params::BenchEndpointComponent,
+    values::{Diff, ValueComparison},
+};
 use anyhow::Result;
 use client::{ClientEndpointComponent, ClientEndpointOutput};
 use reqwest::header::{HeaderMap, HeaderName};
@@ -219,5 +222,17 @@ impl BuildEndpoint {
         }
 
         Ok(endpoint_result)
+    }
+}
+
+impl EndpointRequestResult {
+    /// Returns a default error result with ❌ status and an empty diff.
+    pub fn default_error() -> Self {
+        Self {
+            from_status: "❌".to_string(),
+            target_status: "❌".to_string(),
+            deltas: 0,
+            diff: Some(vec![Diff::UnableToCompare]),
+        }
     }
 }

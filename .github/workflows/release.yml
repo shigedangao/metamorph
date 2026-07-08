@@ -18,7 +18,23 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release
+      - run: zip -j metamorph-${{ matrix.os }}.zip target/release/metamorph
       - uses: actions/upload-artifact@v4
         with:
-          name: metamorph-${{ github.ref_name }}-${{ matrix.os }}
-          path: target/release/metamorph
+          name: metamorph-${{ matrix.os }}
+          path: metamorph-${{ matrix.os }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: metamorph-*
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            *.zip
