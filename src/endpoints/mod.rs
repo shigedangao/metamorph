@@ -1,12 +1,15 @@
-use crate::endpoints::{
-    params::BenchEndpointComponent,
-    values::{Diff, ValueComparison},
+use crate::{
+    client::{CommonClient, TransportMethod},
+    endpoints::{
+        params::BenchEndpointComponent,
+        values::{Diff, ValueComparison},
+    },
 };
 use anyhow::Result;
 use client::{ClientEndpointComponent, ClientEndpointOutput};
 use reqwest::header::{HeaderMap, HeaderName};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use tokio::task::JoinSet;
 use toml::Value;
 
@@ -15,7 +18,7 @@ mod params;
 pub mod values;
 
 /// Represents a header configuration for an endpoint.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct HeaderConfig {
     value: String,
     name: String,
@@ -27,11 +30,18 @@ struct HeadersParams {
     bench: HashMap<String, HeaderConfig>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct BaseParams {
+    pub url: String,
+    #[serde(default)]
+    pub method: TransportMethod,
+}
+
 /// Represents a parsed endpoint component.
 #[derive(Debug, Deserialize)]
 pub struct Endpoints {
-    origin_base_url: String,
-    bench_base_url: String,
+    pub origin_base: BaseParams,
+    pub bench_base: BaseParams,
     headers: Option<HeadersParams>,
     #[serde(default)]
     stream: bool,
@@ -93,23 +103,37 @@ impl Endpoints {
     /// # Returns
     ///
     /// A `HashMap` where the key is the endpoint name and the value is the `BuildEndpoint` struct.
-    pub fn build_endpoints(self) -> HashMap<String, BuildEndpoint> {
+    pub fn build_endpoints(
+        &self,
+        from_transport_method: &TransportMethod,
+        target_transport_method: &TransportMethod,
+    ) -> HashMap<String, BuildEndpoint> {
         let mut endpoints = HashMap::new();
 
-        for (name, parsed) in self._parsed_endpoints {
+        for (name, parsed) in &self._parsed_endpoints {
             let (from, target) = parsed.template();
             let (from_body, target_body) = parsed.get_body();
 
+            let from_endpoint = match from_transport_method {
+                TransportMethod::Http => format!("{}/{}", self.origin_base.url, from),
+                TransportMethod::Grpc => from,
+            };
+
+            let target_endpoint = match target_transport_method {
+                TransportMethod::Http => format!("{}/{}", self.bench_base.url, target),
+                TransportMethod::Grpc => target,
+            };
+
             let build_endpoint = BuildEndpoint {
                 from: ClientEndpointComponent::new(
-                    format!("{}/{}", self.origin_base_url, from),
-                    parsed.from,
+                    from_endpoint,
+                    parsed.from.clone(),
                     self.stream,
                     from_body,
                 ),
                 target: ClientEndpointComponent::new(
-                    format!("{}/{}", self.bench_base_url, target),
-                    parsed.target,
+                    target_endpoint,
+                    parsed.target.clone(),
                     self.stream,
                     target_body,
                 ),
@@ -148,6 +172,34 @@ impl Endpoints {
 
         Ok((origin_headers, target_headers))
     }
+
+    /// Returns the headers as a vector of `(name, value)` pairs for GRPC.
+    ///
+    /// The headers are extracted from the `headers` field of the `Endpoints` struct.
+    #[allow(clippy::type_complexity)]
+    pub fn build_grpc_headers(&self) -> (Vec<(String, String)>, Vec<(String, String)>) {
+        match self.headers.as_ref() {
+            Some(headers) => {
+                // We can safely unwrap here as we checked for None above.
+                let origin_headers = headers
+                    .origin
+                    .clone()
+                    .into_values()
+                    .map(|v| (v.name, v.value))
+                    .collect::<Vec<_>>();
+
+                let bench_headers = headers
+                    .bench
+                    .clone()
+                    .into_values()
+                    .map(|v| (v.name, v.value))
+                    .collect::<Vec<_>>();
+
+                (origin_headers, bench_headers)
+            }
+            None => (Vec::new(), Vec::new()),
+        }
+    }
 }
 
 impl BuildEndpoint {
@@ -163,8 +215,8 @@ impl BuildEndpoint {
     /// A `Result` containing the parsed `BuildEndpoint` struct, or an error if parsing fails.
     pub async fn run(
         self,
-        o_client: reqwest::Client,
-        t_client: reqwest::Client,
+        o_client: Arc<dyn CommonClient>,
+        t_client: Arc<dyn CommonClient>,
         stream_max_payload: usize,
         relative_diff: Option<f64>,
     ) -> Result<EndpointRequestResult> {
@@ -172,14 +224,14 @@ impl BuildEndpoint {
 
         let from_client = o_client.clone();
         set.spawn(async move {
-            let res = self.from.send(&from_client, stream_max_payload).await?;
+            let res = self.from.send(from_client, stream_max_payload).await?;
 
             Ok(InnerEndpointRequestResult::From(res))
         });
 
         let target_client = t_client.clone();
         set.spawn(async move {
-            let res = self.target.send(&target_client, stream_max_payload).await?;
+            let res = self.target.send(target_client, stream_max_payload).await?;
 
             Ok(InnerEndpointRequestResult::Target(res))
         });

@@ -1,10 +1,11 @@
+use crate::client::CommonClient;
 use crate::endpoints::params::{Endpoint, SupportedMethod};
 use anyhow::Result;
 use futures::StreamExt;
-use reqwest::{Client, StatusCode};
-use reqwest_streams::{JsonStreamResponse, error::StreamBodyKind};
+use reqwest::StatusCode;
+use reqwest_streams::error::StreamBodyKind;
 use serde_json::Value;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 /// Represents a component of a client endpoint, including the URL, path, method, and body.
 #[derive(Debug, Clone)]
@@ -21,7 +22,7 @@ pub struct ClientEndpointComponent {
 #[derive(Debug, Clone, Default)]
 pub struct ClientEndpointOutput {
     pub elapsed: u128,
-    pub status: StatusCode,
+    pub status: u16,
     pub nodes: Option<Vec<Value>>,
     pub reconcile_nodes: Option<Vec<Value>>,
 }
@@ -54,7 +55,7 @@ impl ClientEndpointComponent {
     /// * `stream_max_payload` - The maximum payload size for stream endpoints.
     pub async fn send(
         &self,
-        client: &Client,
+        client: Arc<dyn CommonClient>,
         stream_max_payload: usize,
     ) -> Result<ClientEndpointOutput> {
         match self.stream {
@@ -69,42 +70,39 @@ impl ClientEndpointComponent {
     ///
     /// * `client` - The HTTP client to use for the request.
     /// * `max_payload_size` - The maximum payload size to use for the request.
-    async fn run_unary_request(&self, client: &Client) -> Result<ClientEndpointOutput> {
-        let start = Instant::now();
-
+    async fn run_unary_request(
+        &self,
+        client: Arc<dyn CommonClient>,
+    ) -> Result<ClientEndpointOutput> {
         // Send the request and get the response
         let response = match self.method {
-            SupportedMethod::Get => client.get(&self.url).send().await?,
+            SupportedMethod::Get => client.get(self.url.to_string()).await?,
             SupportedMethod::Post => {
                 client
-                    .post(&self.url)
-                    .body(self.body.clone().unwrap_or_default())
-                    .send()
+                    .post(self.url.to_string(), self.body.clone().unwrap_or_default())
                     .await?
             }
         };
 
-        let elapsed = start.elapsed();
-        // Get the status from the response
-        let status = response.status();
-
         if let Some(check_path) = &self.check_path {
             let path = serde_json_path::JsonPath::parse(check_path)?;
-            let body = response.json::<Value>().await?;
+            let Some(body) = response.body else {
+                return Err(anyhow::anyhow!("No body returned from server"));
+            };
 
             let node = path.query(&body).exactly_one().unwrap_or_default();
 
             return Ok(ClientEndpointOutput {
-                elapsed: elapsed.as_millis(),
-                status,
+                elapsed: response.duration.as_millis(),
+                status: response.status,
                 nodes: Some(vec![node.clone()]),
                 reconcile_nodes: None,
             });
         }
 
         Ok(ClientEndpointOutput {
-            elapsed: elapsed.as_millis(),
-            status,
+            elapsed: response.duration.as_millis(),
+            status: response.status,
             nodes: None,
             reconcile_nodes: None,
         })
@@ -117,7 +115,7 @@ impl ClientEndpointComponent {
     /// * `client` - The HTTP client to use for the request.
     async fn run_stream_request(
         &self,
-        client: &Client,
+        client: Arc<dyn CommonClient>,
         stream_max_payload: usize,
     ) -> Result<ClientEndpointOutput> {
         // Parse the check_path if it exists
@@ -133,17 +131,20 @@ impl ClientEndpointComponent {
 
         let start = Instant::now();
         let mut response = match self.method {
-            SupportedMethod::Get => client
-                .get(&self.url)
-                .send()
-                .await?
-                .json_nl_stream::<Value>(stream_max_payload),
-            SupportedMethod::Post => client
-                .post(&self.url)
-                .body(self.body.clone().unwrap_or_default())
-                .send()
-                .await?
-                .json_nl_stream::<Value>(stream_max_payload),
+            SupportedMethod::Get => {
+                client
+                    .get_stream(self.url.to_string(), stream_max_payload)
+                    .await?
+            }
+            SupportedMethod::Post => {
+                client
+                    .get_stream_with_body(
+                        self.url.to_string(),
+                        self.body.clone().unwrap_or_default(),
+                        stream_max_payload,
+                    )
+                    .await?
+            }
         };
 
         let mut nodes = Vec::new();
@@ -176,7 +177,7 @@ impl ClientEndpointComponent {
 
         Ok(ClientEndpointOutput {
             elapsed: start.elapsed().as_millis(),
-            status: StatusCode::OK,
+            status: StatusCode::OK.as_u16(),
             nodes: Some(nodes),
             reconcile_nodes: Some(reconcile_nodes),
         })
