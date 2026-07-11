@@ -1,6 +1,6 @@
 use crate::client::CommonClient;
 use crate::endpoints::params::{Endpoint, SupportedMethod};
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use futures::StreamExt;
 use reqwest::StatusCode;
 use reqwest_streams::error::StreamBodyKind;
@@ -90,7 +90,10 @@ impl ClientEndpointComponent {
                 return Err(anyhow::anyhow!("No body returned from server"));
             };
 
-            let node = path.query(&body).exactly_one().unwrap_or_default();
+            let node = path
+                .query(&body)
+                .exactly_one()
+                .map_err(|e| anyhow!("Unable to found the desired path: {e}"))?;
 
             return Ok(ClientEndpointOutput {
                 elapsed: response.duration.as_millis(),

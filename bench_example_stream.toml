@@ -1,10 +1,12 @@
 [origin_base]
 url = "https://gateway-v0-http.kaiko.ovh"
-method = "Http"
+[origin_base.method]
+type = "http"
 
 [bench_base]
 url = "https://gateway-v0-http.kaiko.ovh"
-method = "Http"
+[bench_base.method]
+type = "http"
 
 stream = true
 
