@@ -4,12 +4,12 @@
   <img src="https://www.pokepedia.fr/images/e/e3/M%C3%A9tamorph-RFVF.png" width="35%" />
 </p>
 
-Just a tool to bench multiple endpoints and see the deltas between each other.
+Just a tool to bench multiple endpoints and see the deltas between each other in HTTP and or gRPC.
 
 ## Run it
 
 ```bash
-cargo run --release -- --config bench_example.toml
+metamorph --config bench_example.toml
 ```
 
 ### Options
@@ -27,8 +27,11 @@ cargo run --release -- --config bench_example.toml
 
 ```toml
 # Base URLs for the origin and benchmark endpoints
-origin_base_url = "https://api.open-meteo.com"
-bench_base_url = "https://api.open-meteo.com"
+[origin_base]
+url = "https://api.open-meteo.com"
+
+[bench_base]
+url = "https://api.open-meteo.com"
 
 [forecast]
 
@@ -60,8 +63,12 @@ unit = "fahrenheit"
 ### Stream
 
 ```toml
-origin_base_url = "https://<example>"
-bench_base_url = "https://<example>"
+[origin_base]
+url = "https://<example>"
+
+[bench_base]
+url = "https://<example>"
+
 stream = true
 
 [headers.origin.api_key]

@@ -1,9 +1,12 @@
-use crate::endpoints::{EndpointRequestResult, Endpoints, values::Diff};
+use crate::{
+    client::Clients,
+    endpoints::{EndpointRequestResult, Endpoints, values::Diff},
+};
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use comfy_table::Table;
 use spinners::{Spinner, Spinners};
-use std::{collections::BTreeMap, time::Duration};
+use std::collections::BTreeMap;
 use tokio::{fs, task::JoinSet};
 
 /// The main application struct.
@@ -18,7 +21,7 @@ pub struct App {
     #[arg(short, long, default_value = "2048")]
     stream_max_payload: usize,
 
-    #[arg(short, long)]
+    #[arg(long, short = 'd')]
     relative_diff: Option<f64>,
 }
 
@@ -33,25 +36,39 @@ impl App {
         let config = Endpoints::new(&bench)?;
 
         // Get endpoints and headers from the config
-        let (origin_headers, target_headers) = config.build_headers()?;
-        let endpoints = config.build_endpoints();
+        // Build the http headers for origin & targets
+        let (http_origin_headers, http_target_headers) = config.build_headers()?;
+        // Build the grpc headers for origin & targets
+        let (grpc_origin_headers, grpc_target_headers) = config.build_grpc_headers();
 
-        let origin_client = reqwest::ClientBuilder::new()
-            .default_headers(origin_headers)
-            .timeout(Duration::from_secs(self.read_timeout))
-            .build()?;
+        // Build the endpoints from the config
+        let endpoints =
+            config.build_endpoints(&config.origin_base.method, &config.bench_base.method);
 
-        let target_client = reqwest::ClientBuilder::new()
-            .default_headers(target_headers)
-            .timeout(Duration::from_secs(self.read_timeout))
-            .build()?;
+        let origin_client = Clients::new(
+            config.origin_base.method,
+            self.read_timeout,
+            http_origin_headers,
+            grpc_origin_headers,
+            config.origin_base.url,
+        )
+        .await?;
+
+        let target_client = Clients::new(
+            config.bench_base.method,
+            self.read_timeout,
+            http_target_headers,
+            grpc_target_headers,
+            config.bench_base.url,
+        )
+        .await?;
 
         let mut set: JoinSet<Result<(String, EndpointRequestResult)>> = JoinSet::new();
 
         // Run through each endpoint and make a request to it
         for (name, endpoint) in endpoints {
-            let o_client = origin_client.clone();
-            let t_client = target_client.clone();
+            let o_client = origin_client.get_clients().clone();
+            let t_client = target_client.get_clients().clone();
 
             set.spawn(async move {
                 let mut sp = Spinner::new(Spinners::Dots, format!("Running {name} endpoints..."));

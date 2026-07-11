@@ -16,3 +16,6 @@ comfy-table = "7.2.2"
 serde_json_path = "0.7.2"
 reqwest-streams = { version = "0.15", features = ["json"] }
 futures = { version = "0.3.32", features = ["std"], default-features = false }
+granc_core = "0.6.4"
+async-trait = "0.1.89"
+tonic = { version = "0.14.6", features = ["tls-native-roots"] }

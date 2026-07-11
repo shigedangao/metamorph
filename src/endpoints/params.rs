@@ -20,7 +20,7 @@ pub enum SupportedMethod {
 }
 
 /// A parsed endpoint containing the endpoint URL, method, and parameters.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Endpoint {
     path: String,
     #[serde(default)]
@@ -44,9 +44,11 @@ impl BenchEndpointComponent {
         let from_body = self.from.params.get(BODY_KEY);
         let target_body = self.target.params.get(BODY_KEY);
 
-        match from_body.zip(target_body) {
-            Some((from, target)) => (Some(from.to_owned()), Some(target.to_owned())),
-            None => (None, None),
+        match (from_body, target_body) {
+            (Some(from), Some(target)) => (Some(from.to_owned()), Some(target.to_owned())),
+            (Some(from), None) => (Some(from.to_owned()), None),
+            (None, Some(target)) => (None, Some(target.to_owned())),
+            (None, None) => (None, None),
         }
     }
 }

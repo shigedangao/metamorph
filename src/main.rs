@@ -2,6 +2,7 @@ use clap::Parser;
 use cli::App;
 
 mod cli;
+mod client;
 mod endpoints;
 
 #[tokio::main]

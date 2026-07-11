@@ -1,5 +1,11 @@
-origin_base_url = "https://<example>"
-bench_base_url = "https://<example>"
+[origin_base]
+url = "https://gateway-v0-http.kaiko.ovh"
+method = "Http"
+
+[bench_base]
+url = "https://gateway-v0-http.kaiko.ovh"
+method = "Http"
+
 stream = true
 
 [headers.origin.api_key]
