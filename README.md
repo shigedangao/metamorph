@@ -100,7 +100,20 @@ reconcile_path = "$.result.interval.endTime"
 args = '{"indexCode": "KK_BRR_ETHUSD"}'
 ```
 
-## Output example
+## gRPC (wip)
+
+⚠️ Only gRPC unary request are supported at the moment. An example of a gRPC request can be found in the [example configuration](./bench_example_http_grpc.toml).
+
+> [!WARNING]
+> In the case where your gRPC server is not made with tonic. It's recommended to use a protoset file to define the service. Below is an example of how to setup the protoset file.
+
+```toml
+[bench_base]
+url = "http://127.0.0.1:10000"
+[bench_base.method]
+type = "grpc"
+protoset_path = "path/to/protoset/file"
+```
 
 ### Success no diff
 

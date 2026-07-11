@@ -4,7 +4,7 @@ use reqwest::header::HeaderMap;
 use reqwest_streams::error::StreamBodyError;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{path::PathBuf, pin::Pin, sync::Arc, time::Duration};
 
 use crate::client::grpc::GrpcClient;
 use crate::client::http::HttpClient;
@@ -20,10 +20,13 @@ pub enum Clients {
 
 /// The transport method to use for the client.
 #[derive(Debug, Deserialize, Clone, Default)]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum TransportMethod {
     #[default]
     Http,
-    Grpc,
+    Grpc {
+        protoset_path: Option<PathBuf>,
+    },
 }
 
 pub struct UnaryResponse {
@@ -59,8 +62,14 @@ impl Clients {
 
                 Ok(Self::Http(client))
             }
-            TransportMethod::Grpc => {
-                let client = GrpcClient::new(&grpc_base_url, grpc_headers).await?;
+            TransportMethod::Grpc { protoset_path } => {
+                let client = GrpcClient::new(
+                    &grpc_base_url,
+                    grpc_headers,
+                    Duration::from_secs(timeout),
+                    protoset_path,
+                )
+                .await?;
 
                 Ok(Self::Grpc(client))
             }

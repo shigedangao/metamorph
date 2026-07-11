@@ -116,12 +116,12 @@ impl Endpoints {
 
             let from_endpoint = match from_transport_method {
                 TransportMethod::Http => format!("{}/{}", self.origin_base.url, from),
-                TransportMethod::Grpc => from,
+                _ => from,
             };
 
             let target_endpoint = match target_transport_method {
                 TransportMethod::Http => format!("{}/{}", self.bench_base.url, target),
-                TransportMethod::Grpc => target,
+                _ => target,
             };
 
             let build_endpoint = BuildEndpoint {

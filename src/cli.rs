@@ -11,6 +11,10 @@ use tokio::{fs, task::JoinSet};
 
 /// The main application struct.
 #[derive(Parser, Debug)]
+#[command(
+    version = "0.1.3",
+    about = "a CLI tool for benchmarking gRPC and HTTP endpoints"
+)]
 pub struct App {
     #[arg(short, long)]
     config: String,
