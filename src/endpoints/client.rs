@@ -1,9 +1,7 @@
 use crate::client::CommonClient;
 use crate::endpoints::params::{Endpoint, SupportedMethod};
 use anyhow::{Result, anyhow};
-use futures::StreamExt;
 use reqwest::StatusCode;
-use reqwest_streams::error::StreamBodyKind;
 use serde_json::Value;
 use std::{sync::Arc, time::Instant};
 
@@ -133,7 +131,7 @@ impl ClientEndpointComponent {
             .and_then(|c| serde_json_path::JsonPath::parse(&c).ok());
 
         let start = Instant::now();
-        let mut response = match self.method {
+        let response = match self.method {
             SupportedMethod::Get => {
                 client
                     .get_stream(self.url.to_string(), stream_max_payload)
@@ -153,28 +151,19 @@ impl ClientEndpointComponent {
         let mut nodes = Vec::new();
         let mut reconcile_nodes = Vec::new();
 
-        while let Some(data) = response.next().await {
-            match data {
-                Ok(body) => {
-                    if let Some(path) = &check_path {
-                        nodes.push(path.query(&body).exactly_one().unwrap_or_default().clone());
-                    }
+        for body in response {
+            if let Some(path) = &check_path {
+                nodes.push(path.query(&body).exactly_one().unwrap_or_default().clone());
+            }
 
-                    if let Some(reconcile_path) = &reconcile_path {
-                        reconcile_nodes.push(
-                            reconcile_path
-                                .query(&body)
-                                .exactly_one()
-                                .unwrap_or_default()
-                                .clone(),
-                        );
-                    }
-                }
-                Err(err) => match err.kind() {
-                    // Ignore the error as it's due to the stream being closed due to the max length reached.
-                    StreamBodyKind::MaxLenReachedError | StreamBodyKind::CodecError => {}
-                    StreamBodyKind::InputOutputError => return Err(err.into()),
-                },
+            if let Some(reconcile_path) = &reconcile_path {
+                reconcile_nodes.push(
+                    reconcile_path
+                        .query(&body)
+                        .exactly_one()
+                        .unwrap_or_default()
+                        .clone(),
+                );
             }
         }
 

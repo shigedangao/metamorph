@@ -13,7 +13,7 @@ type = "grpc"
 [savonnette.from]
 path = "impliedvolatility.Savon/ComputeTradeWeightedImpliedVol"
 method = "Post"
-check_path = "$.implied_vols[0].implied_volatility"
+check_path = "$.impliedVols[0].impliedVolatility"
 
 [savonnette.from.params]
 args = '{"prices":[{"timestamp":"2022-03-01T00:58:00.000Z","strike":35000,"expiry":"2022-06-24T00:00:00.000Z","option_type":"P","price":0.0625,"forward_log_moneyness":-0.1335313926,"time_to_expiry":0.3149579815,"spot":40000,"forward":40000},{"timestamp":"2022-03-01T00:58:00.000Z","strike":70000,"expiry":"2022-09-30T00:00:00.000Z","price":0.0666,"forward_log_moneyness":0.5596157879,"time_to_expiry":0.5834511071,"spot":40000,"forward":40000}],"skip_spot":false,"min_weight":1,"max_weight":10,"tick_size":0.0005,"tick_nb_threshold":5,"start_time":"2022-03-01T00:00:00.000Z","end_time":"2022-03-01T01:00:00.000Z"}'
@@ -21,8 +21,7 @@ args = '{"prices":[{"timestamp":"2022-03-01T00:58:00.000Z","strike":35000,"expir
 [savonnette.target]
 path = "impliedvolatility.Savon/ComputeTradeWeightedImpliedVol"
 method = "Post"
-check_path = "$.implied_vols[0].implied_volatility"
-protoset_path = ""
+check_path = "$.impliedVols[0].impliedVolatility"
 
 [savonnette.target.params]
 args = '{"prices":[{"timestamp":"2022-03-01T00:58:00.000Z","strike":35000,"expiry":"2022-06-24T00:00:00.000Z","option_type":"P","price":0.0625,"forward_log_moneyness":-0.1335313926,"time_to_expiry":0.3149579815,"spot":40000,"forward":40000},{"timestamp":"2022-03-01T00:58:00.000Z","strike":70000,"expiry":"2022-09-30T00:00:00.000Z","price":0.0666,"forward_log_moneyness":0.5596157879,"time_to_expiry":0.5834511071,"spot":40000,"forward":40000}],"skip_spot":false,"min_weight":1,"max_weight":10,"tick_size":0.0005,"tick_nb_threshold":5,"start_time":"2022-03-01T00:00:00.000Z","end_time":"2022-03-01T01:00:00.000Z"}'
