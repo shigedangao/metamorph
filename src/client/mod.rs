@@ -1,10 +1,8 @@
 use anyhow::Result;
-use futures::Stream;
 use reqwest::header::HeaderMap;
-use reqwest_streams::error::StreamBodyError;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{path::PathBuf, pin::Pin, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use crate::client::grpc::GrpcClient;
 use crate::client::http::HttpClient;
@@ -110,11 +108,7 @@ pub trait CommonClient: Send + Sync {
     ///
     /// * `url` - The URL to send the GET request to.
     /// * `max_payload` - The maximum payload size to stream.
-    async fn get_stream(
-        &self,
-        url: String,
-        max_payload: usize,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Value, StreamBodyError>> + Send>>>;
+    async fn get_stream(&self, url: String, max_payload: usize) -> Result<Vec<Value>>;
     /// Performs a GET request to the specified URL with the given body and returns a stream of results.
     ///
     /// # Arguments
@@ -127,5 +121,5 @@ pub trait CommonClient: Send + Sync {
         url: String,
         body: String,
         max_payload: usize,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Value, StreamBodyError>> + Send>>>;
+    ) -> Result<Vec<Value>>;
 }

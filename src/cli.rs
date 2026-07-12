@@ -16,16 +16,30 @@ use tokio::{fs, task::JoinSet};
     about = "a CLI tool for benchmarking gRPC and HTTP endpoints"
 )]
 pub struct App {
-    #[arg(short, long)]
+    #[arg(short, long, help = "the path to the config file toml file")]
     config: String,
 
-    #[arg(short, long, default_value = "15")]
+    #[arg(
+        short,
+        long,
+        default_value = "15",
+        help = "the read timeout for HTTP both unary & stream requests & gRPC unary requests (in seconds) (default: 15)"
+    )]
     read_timeout: u64,
 
-    #[arg(short, long, default_value = "2048")]
+    #[arg(
+        short,
+        long,
+        default_value = "2048",
+        help = "the maximum payload size for streaming requests (in bytes) (default: 2048). For gRPC streaming it's recommended to at least set 4096 bytes"
+    )]
     stream_max_payload: usize,
 
-    #[arg(long, short = 'd')]
+    #[arg(
+        long,
+        short = 'd',
+        help = "the relative difference threshold in % for the benchmark results (default: 0)"
+    )]
     relative_diff: Option<f64>,
 }
 

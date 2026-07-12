@@ -1,17 +1,16 @@
 use super::{CommonClient, UnaryResponse};
 use anyhow::{Result, anyhow};
-use futures::Stream;
+use futures::StreamExt;
 use granc_core::client::{
     DynamicRequest, DynamicResponse, GrancClient, Online, OnlineWithoutReflection,
 };
 use reqwest::StatusCode;
-use reqwest_streams::error::StreamBodyError;
 use serde_json::{Value, json};
 use std::{
+    future,
     path::PathBuf,
-    pin::Pin,
     str::FromStr,
-    sync::Arc,
+    sync::{Arc, atomic::AtomicUsize},
     time::{Duration, Instant},
 };
 use tonic::transport::{ClientTlsConfig, Endpoint};
@@ -86,24 +85,7 @@ impl GrpcClient {
     /// * `body` - The optional body of the request as a JSON string.
     pub async fn unary_request(&self, url: &str, body: Option<String>) -> Result<UnaryResponse> {
         let start = Instant::now();
-        let Some((service_name, method_name)) = url.split_once("/") else {
-            return Err(anyhow::anyhow!(
-                "Invalid URL: {} definition for a gRPC request",
-                url
-            ));
-        };
-
-        let json_body = match body {
-            Some(b) => serde_json::from_str(&b)?,
-            None => json!({}),
-        };
-
-        let request = DynamicRequest {
-            service: service_name.to_string(),
-            method: method_name.to_string(),
-            body: json_body,
-            headers: self.headers.clone(),
-        };
+        let request = self.prepare_request(url.to_string(), body)?;
 
         let response = match &self.client {
             GrpClientType::Online(client) => {
@@ -129,6 +111,93 @@ impl GrpcClient {
 
         Err(anyhow::anyhow!("Unexpected response type"))
     }
+
+    /// Sends a streaming request to the gRPC server and returns the response as a vector of values.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The URL of the gRPC method to call.
+    /// * `body` - The request body as a string, if any.
+    async fn stream_request(
+        &self,
+        url: String,
+        body: Option<String>,
+        max_payload_size: usize,
+    ) -> Result<Vec<Value>> {
+        let request = self.prepare_request(url.to_string(), body)?;
+
+        let response = match &self.client {
+            GrpClientType::Online(client) => {
+                let mut client_clone = client.clone();
+                client_clone.dynamic(request).await?
+            }
+            GrpClientType::Offline(client) => {
+                let mut client_clone = client.clone();
+                client_clone.dynamic(request).await?
+            }
+        };
+
+        // Counter for the size of the payload
+        let size_counter = AtomicUsize::new(0);
+        let mut values = Vec::new();
+
+        if let DynamicResponse::Streaming(stream) = response {
+            // Take values from the stream until the size counter exceeds max_payload_size
+            let constrained_stream = stream
+                .take_while(|value| {
+                    let result = match value {
+                        Ok(value) => {
+                            let size = serde_json::to_vec(value).map(|b| b.len()).unwrap_or(0);
+                            size_counter.fetch_add(size, std::sync::atomic::Ordering::Relaxed);
+
+                            let current_size =
+                                size_counter.load(std::sync::atomic::Ordering::Relaxed);
+                            current_size < max_payload_size
+                        }
+                        Err(_) => false,
+                    };
+
+                    future::ready(result)
+                })
+                .collect::<Vec<_>>()
+                .await;
+
+            for value in constrained_stream {
+                values.push(value?);
+            }
+
+            return Ok(values);
+        }
+
+        Err(anyhow::anyhow!("Unexpected response type"))
+    }
+
+    /// Prepares a gRPC request from the given URL and optional body.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The URL of the gRPC service method, e.g. `"/service/method"`.
+    /// * `body` - The optional body of the request as a JSON string.
+    fn prepare_request(&self, url: String, body: Option<String>) -> Result<DynamicRequest> {
+        let Some((service_name, method_name)) = url.split_once("/") else {
+            return Err(anyhow::anyhow!(
+                "Invalid URL: {} definition for a gRPC request",
+                url
+            ));
+        };
+
+        let json_body = match body {
+            Some(b) => serde_json::from_str(&b)?,
+            None => json!({}),
+        };
+
+        Ok(DynamicRequest {
+            service: service_name.to_string(),
+            method: method_name.to_string(),
+            body: json_body,
+            headers: self.headers.clone(),
+        })
+    }
 }
 
 #[async_trait::async_trait]
@@ -145,20 +214,22 @@ impl CommonClient for GrpcClient {
         Ok(result)
     }
 
-    async fn get_stream(
-        &self,
-        _: String,
-        _: usize,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Value, StreamBodyError>> + Send>>> {
-        unimplemented!();
+    async fn get_stream(&self, method: String, max_payload_size: usize) -> Result<Vec<Value>> {
+        let result = self.stream_request(method, None, max_payload_size).await?;
+
+        Ok(result)
     }
 
     async fn get_stream_with_body(
         &self,
-        _: String,
-        _: String,
-        _: usize,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Value, StreamBodyError>> + Send>>> {
-        unimplemented!();
+        url: String,
+        body: String,
+        max_payload_size: usize,
+    ) -> Result<Vec<Value>> {
+        let result = self
+            .stream_request(url, Some(body), max_payload_size)
+            .await?;
+
+        Ok(result)
     }
 }

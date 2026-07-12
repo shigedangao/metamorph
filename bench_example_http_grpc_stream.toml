@@ -7,17 +7,18 @@ url = "https://gateway-v0-http.kaiko.ovh"
 type = "http"
 
 [bench_base]
-url = "https://gateway-v0-http.kaiko.ovh"
+url = "https://gateway-v0-grpc.kaiko.ovh"
 [bench_base.method]
-type = "http"
+type = "grpc"
+protoset_path = "<path to protoset file>"
 
 [headers.origin.api_key]
 name = "key"
 value = "xxxx"
 
 [headers.bench.api_key]
-name = "key"
-value = "xxxx"
+name = "Authorization"
+value = "Bearer xxxx"
 
 [rates]
 
@@ -31,10 +32,10 @@ reconcile_path = "$.result.interval.endTime"
 args = '{"indexCode": "KK_BRR_BTCUSD"}'
 
 [rates.target]
-path = "api/stream/index_v1"
+path = "kaikosdk.StreamIndexServiceV1/Subscribe"
 method = "Post"
-check_path = "$.result.percentages[0].price"
-reconcile_path = "$.result.interval.endTime"
+check_path = "$.percentages[0].price"
+reconcile_path = "$.interval.endTime"
 
 [rates.target.params]
 args = '{"indexCode": "KK_BRR_ETHUSD"}'

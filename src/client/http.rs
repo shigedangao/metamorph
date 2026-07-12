@@ -1,11 +1,10 @@
 use super::{CommonClient, UnaryResponse};
 use anyhow::Result;
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use reqwest::{Client, ClientBuilder, header::HeaderMap};
-use reqwest_streams::{JsonStreamResponse, error::StreamBodyError};
+use reqwest_streams::{JsonStreamResponse, error::StreamBodyKind};
 use serde_json::Value;
 use std::{
-    pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -65,20 +64,27 @@ impl CommonClient for HttpClient {
         })
     }
 
-    async fn get_stream(
-        &self,
-        url: String,
-        max_payload: usize,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Value, StreamBodyError>> + Send>>> {
-        let stream = self
+    async fn get_stream(&self, url: String, max_payload: usize) -> Result<Vec<Value>> {
+        let mut stream = self
             .client
             .get(url)
             .send()
             .await?
-            .json_nl_stream::<Value>(max_payload)
-            .boxed();
+            .json_nl_stream::<Value>(max_payload);
 
-        Ok(stream)
+        let mut values = Vec::new();
+        while let Some(value) = stream.next().await {
+            match value {
+                Ok(value) => values.push(value),
+                Err(err) => match err.kind() {
+                    // Ignore the error as it's due to the stream being closed due to the max length reached.
+                    StreamBodyKind::MaxLenReachedError | StreamBodyKind::CodecError => {}
+                    StreamBodyKind::InputOutputError => return Err(err.into()),
+                },
+            }
+        }
+
+        Ok(values)
     }
 
     async fn get_stream_with_body(
@@ -86,16 +92,27 @@ impl CommonClient for HttpClient {
         url: String,
         body: String,
         max_payload: usize,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Value, StreamBodyError>> + Send>>> {
-        let stream = self
+    ) -> Result<Vec<Value>> {
+        let mut stream = self
             .client
             .post(url)
             .body(body.clone())
             .send()
             .await?
-            .json_nl_stream::<Value>(max_payload)
-            .boxed();
+            .json_nl_stream::<Value>(max_payload);
 
-        Ok(stream)
+        let mut values = Vec::new();
+        while let Some(value) = stream.next().await {
+            match value {
+                Ok(value) => values.push(value),
+                Err(err) => match err.kind() {
+                    // Ignore the error as it's due to the stream being closed due to the max length reached.
+                    StreamBodyKind::MaxLenReachedError | StreamBodyKind::CodecError => {}
+                    StreamBodyKind::InputOutputError => return Err(err.into()),
+                },
+            }
+        }
+
+        Ok(values)
     }
 }

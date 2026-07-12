@@ -9,6 +9,7 @@ pub enum Diff {
 }
 
 /// ValueComparison compares two sets of values from two endpoints.
+#[derive(Debug)]
 pub struct ValueComparison<'a> {
     from: &'a [Value],
     target: &'a [Value],
