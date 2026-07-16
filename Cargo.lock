@@ -535,9 +535,9 @@ dependencies = [
 
 [[package]]
 name = "granc_core"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc0837885685f884a2ba09e25070f1fb4d19bfcbc3ad1efecdc71fd4ffe7ec95"
+checksum = "c74f9549c26d77f24a5d0ff5a6732c9e1408ca2b06fba792e56bd7a5e08f9fb8"
 dependencies = [
  "futures-util",
  "http",
@@ -1000,7 +1000,7 @@ checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
 
 [[package]]
 name = "metamorph"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "async-trait",

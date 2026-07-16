@@ -5,7 +5,7 @@ use crate::{
         values::{Diff, ValueComparison},
     },
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use client::{ClientEndpointComponent, ClientEndpointOutput};
 use reqwest::header::{HeaderMap, HeaderName};
 use serde::Deserialize;
@@ -262,6 +262,14 @@ impl BuildEndpoint {
 
         // Compare the diff between two vec of node values whenever provided
         if let Some((f_nodes, t_nodes)) = from_client_output.nodes.zip(target_client_output.nodes) {
+            if f_nodes.is_empty() || t_nodes.is_empty() {
+                return Err(anyhow!(
+                    "Data could not be fetch from nodes: from datasets length: {}, target datasets length: {}",
+                    f_nodes.len(),
+                    t_nodes.len()
+                ));
+            }
+
             let comparison_handle = ValueComparison::new(
                 &f_nodes,
                 &t_nodes,

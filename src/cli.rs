@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use clap::Parser;
-use comfy_table::Table;
+use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table};
 use spinners::{Spinner, Spinners};
 use std::collections::BTreeMap;
 use tokio::{fs, task::JoinSet};
@@ -12,7 +12,7 @@ use tokio::{fs, task::JoinSet};
 /// The main application struct.
 #[derive(Parser, Debug)]
 #[command(
-    version = "0.1.3",
+    version = "0.1.6",
     about = "a CLI tool for benchmarking gRPC and HTTP endpoints"
 )]
 pub struct App {
@@ -30,7 +30,7 @@ pub struct App {
     #[arg(
         short,
         long,
-        default_value = "2048",
+        default_value = "4096",
         help = "the maximum payload size for streaming requests (in bytes) (default: 2048). For gRPC streaming it's recommended to at least set 4096 bytes"
     )]
     stream_max_payload: usize,
@@ -103,14 +103,14 @@ impl App {
                     Ok(res) => res,
                     Err(e) => {
                         sp.stop_and_persist(
-                            "✖",
+                            "🔴",
                             format!("Failed to process {name} endpoint due to: {e}"),
                         );
 
                         return Err(anyhow!(name));
                     }
                 };
-                sp.stop_and_persist("✔", format!("Finished processing {name} endpoints."));
+                sp.stop_and_persist("✅", format!("Finished processing {name} endpoints."));
 
                 Ok((name, res))
             });
@@ -130,33 +130,39 @@ impl App {
 
         // Build the results
         let mut table = Table::new();
-        table.set_header(vec![
-            "endpoint name",
-            "from",
-            "target",
-            "diff",
-            "deltas (in ms)",
-        ]);
+        table
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_header(vec![
+                "endpoint name",
+                "from",
+                "target",
+                "diff",
+                "deltas (in ms)",
+            ]);
 
         for (endpoint, res) in results {
             let diff = match &res.diff {
-                Some(diffs) => diffs
-                    .iter()
-                    .map(|d| match d {
-                        Diff::Output(s) => s.clone(),
-                        Diff::UnableToCompare => "Unable to compare".to_string(),
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                None => "None".to_string(),
+                Some(diffs) => {
+                    let diff_str = diffs
+                        .iter()
+                        .map(|d| match d {
+                            Diff::Output(s) => s.clone(),
+                            Diff::UnableToCompare => "Unable to compare".to_string(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                    Cell::new(diff_str).fg(Color::DarkMagenta)
+                }
+                None => Cell::new("None").fg(Color::Green),
             };
 
             table.add_row(vec![
-                endpoint,
-                res.from_status,
-                res.target_status,
+                Cell::new(endpoint).add_attribute(Attribute::Bold),
+                Cell::new(res.from_status),
+                Cell::new(res.target_status),
                 diff,
-                format!("{}", res.deltas),
+                Cell::new(format!("{}", res.deltas)),
             ]);
         }
 
