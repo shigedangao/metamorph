@@ -536,8 +536,6 @@ dependencies = [
 [[package]]
 name = "granc_core"
 version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc0837885685f884a2ba09e25070f1fb4d19bfcbc3ad1efecdc71fd4ffe7ec95"
 dependencies = [
  "futures-util",
  "http",

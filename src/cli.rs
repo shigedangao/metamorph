@@ -30,7 +30,7 @@ pub struct App {
     #[arg(
         short,
         long,
-        default_value = "2048",
+        default_value = "4096",
         help = "the maximum payload size for streaming requests (in bytes) (default: 2048). For gRPC streaming it's recommended to at least set 4096 bytes"
     )]
     stream_max_payload: usize,
