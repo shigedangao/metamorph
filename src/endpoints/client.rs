@@ -8,7 +8,7 @@ use std::{sync::Arc, time::Instant};
 /// Represents a component of a client endpoint, including the URL, path, method, and body.
 #[derive(Debug, Clone)]
 pub struct ClientEndpointComponent {
-    url: String,
+    pub url: String,
     pub check_path: Option<String>,
     pub reconcile_path: Option<String>,
     method: SupportedMethod,

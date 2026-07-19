@@ -22,21 +22,21 @@ type = "grpc"
 [test]
 
 [test.from]
-path = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
 check_path = "$.elevation"
+path = "v1/forecast?latitude={lat}&longitude={lon}&hourly={hourly}&start_date={start}&end_date={end}&temperature_unit={unit}"
 
 [test.from.params]
+end = "2026-06-20"
+hourly = "temperature_2m"
 lat = "48.85"
 lon = "2.35"
-hourly = "temperature_2m"
 start = "2026-06-19"
-end = "2026-06-20"
 unit = "celsius"
 
 [test.target]
-path = "impliedvolatility.Savon/ComputeTradeWeightedImpliedVol"
-method = "Post"
 check_path = "$.impliedVols[0].impliedVolatility"
+method = "Post"
+path = "impliedvolatility.Savon/ComputeTradeWeightedImpliedVol"
 
 [test.target.params]
 args = '{"prices":[{"timestamp":"2022-03-01T00:58:00.000Z","strike":35000,"expiry":"2022-06-24T00:00:00.000Z","option_type":"P","price":0.0625,"forward_log_moneyness":-0.1335313926,"time_to_expiry":0.3149579815,"spot":40000,"forward":40000},{"timestamp":"2022-03-01T00:58:00.000Z","strike":70000,"expiry":"2022-09-30T00:00:00.000Z","price":0.0666,"forward_log_moneyness":0.5596157879,"time_to_expiry":0.5834511071,"spot":40000,"forward":40000}],"skip_spot":false,"min_weight":1,"max_weight":10,"tick_size":0.0005,"tick_nb_threshold":5,"start_time":"2022-03-01T00:00:00.000Z","end_time":"2022-03-01T01:00:00.000Z"}'

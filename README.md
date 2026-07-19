@@ -104,14 +104,13 @@ args = '{"indexCode": "KK_BRR_ETHUSD"}'
 
 Both gRPC unary & streaming request are supported. An example of a gRPC request can be found in the [unary example configuration](./bench_example_http_grpc.toml) and [streaming example configuration](./bench_example_http_grpc_stream.toml).
 
-> [!WARNING]
-> In the case where your gRPC server is not made with tonic. It's recommended to use a protoset file to define the service. Below is an example of how to setup the protoset file.
 
 ```toml
 [bench_base]
 url = "http://127.0.0.1:10000"
 [bench_base.method]
 type = "grpc"
+# the field below is optional but if you have a protoset path then you can use it rather than relying on reflection
 protoset_path = "path/to/protoset/file"
 ```
 

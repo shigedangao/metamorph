@@ -62,7 +62,7 @@ impl<'a> ValueComparison<'a> {
                 (Value::Number(f), Value::Number(t)) => {
                     return compare_numbers(f, t, relative_diff, |fv, tv, diff| {
                         Some(vec![Diff::Output(format!(
-                            "Diff detected: \n- from: {fv}\n- target: {tv}\n with a relative diff of {diff}%"
+                            "Diff detected: \n- from: {fv}\n- target: {tv}\n with a relative diff of {diff}%",
                         ))])
                     });
                 }
@@ -96,9 +96,7 @@ impl<'a> ValueComparison<'a> {
                     }
                     (Value::Number(f), Value::Number(t)) => {
                         compare_numbers(f, t, relative_diff, |fv, tv, diff| {
-                            diffs.push(Diff::Output(format!(
-                                "Diff detected on key: {k}\n- origin: {fv}\n- target: {tv}\nwith a relative diff of {diff}%\n"
-                            )));
+                            diffs.push(Diff::Output(format!("Diff detected on key: {k}\n- origin: {fv}\n- target: {tv}\nwith a relative diff of {diff}%\n")));
 
                             None
                         });
