@@ -5,7 +5,7 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub enum Diff {
     Output(String),
-    UnableToCompare,
+    UnableToCompare(String),
 }
 
 /// ValueComparison compares two sets of values from two endpoints.
@@ -73,12 +73,12 @@ impl<'a> ValueComparison<'a> {
         // Otherwise get the keys from the from & target nodes which we'll use to compare the data
         let from_reconcile_keys = match &self.from_reconcile_node {
             Some(k) => get_stringify_keys_from_values(k),
-            None => return Some(vec![Diff::UnableToCompare]),
+            None => return Some(vec![Diff::UnableToCompare("".to_string())]),
         };
 
         let target_from_reconcile_keys = match &self.target_reconcile_node {
             Some(k) => get_stringify_keys_from_values(k),
-            None => return Some(vec![Diff::UnableToCompare]),
+            None => return Some(vec![Diff::UnableToCompare("".to_string())]),
         };
 
         let from_map = match_keys_with_nodes(self.from, &from_reconcile_keys);

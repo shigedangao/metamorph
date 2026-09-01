@@ -1,8 +1,8 @@
 use crate::{
-    client::Clients,
+    client::{ClientError, Clients},
     endpoints::{EndpointRequestResult, Endpoints, values::Diff},
 };
-use anyhow::{Result, anyhow};
+use anyhow::anyhow;
 use clap::Parser;
 use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table};
 use spinners::{Spinner, Spinners};
@@ -45,7 +45,7 @@ pub struct App {
 
 impl App {
     /// Runs the application, reading the config file and making requests to the endpoints.
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(self) -> anyhow::Result<()> {
         let bench = fs::read_to_string(&self.config)
             .await
             .map_err(|err| anyhow!("Unable to read the config file due to {err}"))?;
@@ -81,7 +81,8 @@ impl App {
         )
         .await?;
 
-        let mut set: JoinSet<Result<(String, EndpointRequestResult)>> = JoinSet::new();
+        let mut set: JoinSet<Result<(String, EndpointRequestResult), (String, ClientError)>> =
+            JoinSet::new();
 
         // Run through each endpoint and make a request to it
         for (name, endpoint) in endpoints {
@@ -107,7 +108,7 @@ impl App {
                             format!("Failed to process {name} endpoint due to: {e}"),
                         );
 
-                        return Err(anyhow!(name));
+                        return Err((name, e));
                     }
                 };
                 sp.stop_and_persist("✅", format!("Finished processing {name} endpoints."));
@@ -121,9 +122,12 @@ impl App {
         while let Some(res) = set.join_next().await {
             match res? {
                 Ok((name, request_res)) => results.insert(name, request_res),
-                Err(name) => {
+                Err((name, client_error)) => {
                     // The error returns the name of the endpoint that has failed. We don't really care about the reason when displaying in the table.
-                    results.insert(name.to_string(), EndpointRequestResult::default_error())
+                    results.insert(
+                        name.to_string(),
+                        EndpointRequestResult::with_default_error(client_error.reason),
+                    )
                 }
             };
         }
@@ -147,7 +151,7 @@ impl App {
                         .iter()
                         .map(|d| match d {
                             Diff::Output(s) => s.clone(),
-                            Diff::UnableToCompare => "Unable to compare".to_string(),
+                            Diff::UnableToCompare(reason) => reason.clone(),
                         })
                         .collect::<Vec<_>>()
                         .join("\n");

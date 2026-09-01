@@ -1,4 +1,4 @@
-use super::{CommonClient, UnaryResponse};
+use super::{ClientError, CommonClient, UnaryResponse};
 use anyhow::{Result, anyhow};
 use futures::StreamExt;
 use granc_core::client::{
@@ -202,20 +202,33 @@ impl GrpcClient {
 
 #[async_trait::async_trait]
 impl CommonClient for GrpcClient {
-    async fn get(&self, url: String) -> Result<UnaryResponse> {
-        let result = self.unary_request(&url, None).await?;
+    async fn get(&self, url: String) -> Result<UnaryResponse, ClientError> {
+        let result = self
+            .unary_request(&url, None)
+            .await
+            .map_err(|err| ClientError::with_reason(err.to_string()))?;
 
         Ok(result)
     }
 
-    async fn post(&self, url: String, body: String) -> Result<UnaryResponse> {
-        let result = self.unary_request(&url, Some(body)).await?;
+    async fn post(&self, url: String, body: String) -> Result<UnaryResponse, ClientError> {
+        let result = self
+            .unary_request(&url, Some(body))
+            .await
+            .map_err(|err| ClientError::with_reason(err.to_string()))?;
 
         Ok(result)
     }
 
-    async fn get_stream(&self, method: String, max_payload_size: usize) -> Result<Vec<Value>> {
-        let result = self.stream_request(method, None, max_payload_size).await?;
+    async fn get_stream(
+        &self,
+        method: String,
+        max_payload_size: usize,
+    ) -> Result<Vec<Value>, ClientError> {
+        let result = self
+            .stream_request(method, None, max_payload_size)
+            .await
+            .map_err(|err| ClientError::with_reason(err.to_string()))?;
 
         Ok(result)
     }
@@ -225,10 +238,11 @@ impl CommonClient for GrpcClient {
         url: String,
         body: String,
         max_payload_size: usize,
-    ) -> Result<Vec<Value>> {
+    ) -> Result<Vec<Value>, ClientError> {
         let result = self
             .stream_request(url, Some(body), max_payload_size)
-            .await?;
+            .await
+            .map_err(|err| ClientError::with_reason(err.to_string()))?;
 
         Ok(result)
     }

@@ -1,11 +1,10 @@
 use crate::{
-    client::{CommonClient, TransportMethod},
+    client::{ClientError, CommonClient, TransportMethod},
     endpoints::{
         params::BenchEndpointComponent,
         values::{Diff, ValueComparison},
     },
 };
-use anyhow::{Result, anyhow};
 use client::{ClientEndpointComponent, ClientEndpointOutput};
 use reqwest::header::{HeaderMap, HeaderName};
 use serde::Deserialize;
@@ -85,7 +84,7 @@ impl Endpoints {
     /// # Returns
     ///
     /// A `Result` containing the parsed `Endpoints` struct, or an error if parsing fails.
-    pub fn new(config: &str) -> Result<Self> {
+    pub fn new(config: &str) -> anyhow::Result<Self> {
         let mut endpoints: Endpoints = toml::from_str(config)?;
 
         // Loop through the table of the endpoints and parse each endpoint into a BenchEndpointComponent
@@ -150,7 +149,7 @@ impl Endpoints {
     /// # Returns
     ///
     /// A `Result` containing the `HeaderMap`, or an error if building fails.
-    pub fn build_headers(&self) -> Result<(HeaderMap, HeaderMap)> {
+    pub fn build_headers(&self) -> anyhow::Result<(HeaderMap, HeaderMap)> {
         let mut origin_headers = HeaderMap::new();
         let mut target_headers = HeaderMap::new();
 
@@ -219,8 +218,8 @@ impl BuildEndpoint {
         t_client: Arc<dyn CommonClient>,
         stream_max_payload: usize,
         relative_diff: Option<f64>,
-    ) -> Result<EndpointRequestResult> {
-        let mut set: JoinSet<Result<InnerEndpointRequestResult>> = JoinSet::new();
+    ) -> Result<EndpointRequestResult, ClientError> {
+        let mut set: JoinSet<Result<InnerEndpointRequestResult, ClientError>> = JoinSet::new();
 
         let from_client = o_client.clone();
         set.spawn(async move {
@@ -240,12 +239,14 @@ impl BuildEndpoint {
         let mut target_client_output = ClientEndpointOutput::default();
 
         while let Some(res) = set.join_next().await {
-            match res?? {
-                InnerEndpointRequestResult::From(output) => {
-                    from_client_output = output;
-                }
-                InnerEndpointRequestResult::Target(output) => {
-                    target_client_output = output;
+            if let Ok(payload) = res {
+                match payload? {
+                    InnerEndpointRequestResult::From(output) => {
+                        from_client_output = output;
+                    }
+                    InnerEndpointRequestResult::Target(output) => {
+                        target_client_output = output;
+                    }
                 }
             }
         }
@@ -263,11 +264,11 @@ impl BuildEndpoint {
         // Compare the diff between two vec of node values whenever provided
         if let Some((f_nodes, t_nodes)) = from_client_output.nodes.zip(target_client_output.nodes) {
             if f_nodes.is_empty() || t_nodes.is_empty() {
-                return Err(anyhow!(
+                return Err(ClientError::with_reason(format!(
                     "Data could not be fetch from nodes: from datasets length: {}, target datasets length: {}",
                     f_nodes.len(),
                     t_nodes.len()
-                ));
+                )));
             }
 
             let comparison_handle = ValueComparison::new(
@@ -287,12 +288,12 @@ impl BuildEndpoint {
 
 impl EndpointRequestResult {
     /// Returns a default error result with ❌ status and an empty diff.
-    pub fn default_error() -> Self {
+    pub fn with_default_error(reason: String) -> Self {
         Self {
             from_status: "❌".to_string(),
             target_status: "❌".to_string(),
             deltas: 0,
-            diff: Some(vec![Diff::UnableToCompare]),
+            diff: Some(vec![Diff::UnableToCompare(reason)]),
         }
     }
 }

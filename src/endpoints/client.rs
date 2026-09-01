@@ -1,6 +1,6 @@
-use crate::client::CommonClient;
+use crate::client::{ClientError, CommonClient};
 use crate::endpoints::params::{Endpoint, SupportedMethod};
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use reqwest::StatusCode;
 use serde_json::Value;
 use std::{sync::Arc, time::Instant};
@@ -55,7 +55,7 @@ impl ClientEndpointComponent {
         &self,
         client: Arc<dyn CommonClient>,
         stream_max_payload: usize,
-    ) -> Result<ClientEndpointOutput> {
+    ) -> Result<ClientEndpointOutput, ClientError> {
         match self.stream {
             true => self.run_stream_request(client, stream_max_payload).await,
             false => self.run_unary_request(client).await,
@@ -71,7 +71,7 @@ impl ClientEndpointComponent {
     async fn run_unary_request(
         &self,
         client: Arc<dyn CommonClient>,
-    ) -> Result<ClientEndpointOutput> {
+    ) -> Result<ClientEndpointOutput, ClientError> {
         // Send the request and get the response
         let response = match self.method {
             SupportedMethod::Get => client.get(self.url.to_string()).await?,
@@ -83,15 +83,16 @@ impl ClientEndpointComponent {
         };
 
         if let Some(check_path) = &self.check_path {
-            let path = serde_json_path::JsonPath::parse(check_path)?;
+            let path = serde_json_path::JsonPath::parse(check_path)
+                .map_err(|err| ClientError::with_reason(err.to_string()))?;
+
             let Some(body) = response.body else {
-                return Err(anyhow::anyhow!("No body returned from server"));
+                return Err(ClientError::with_reason("No body returned from server"));
             };
 
-            let node = path
-                .query(&body)
-                .exactly_one()
-                .map_err(|e| anyhow!("Unable to found the desired path: {e}"))?;
+            let node = path.query(&body).exactly_one().map_err(|e| {
+                ClientError::with_reason(format!("Unable to found the desired path: {e}"))
+            })?;
 
             return Ok(ClientEndpointOutput {
                 elapsed: response.duration.as_millis(),
@@ -118,7 +119,7 @@ impl ClientEndpointComponent {
         &self,
         client: Arc<dyn CommonClient>,
         stream_max_payload: usize,
-    ) -> Result<ClientEndpointOutput> {
+    ) -> Result<ClientEndpointOutput, ClientError> {
         // Parse the check_path if it exists
         let check_path = self
             .check_path

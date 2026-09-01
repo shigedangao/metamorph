@@ -1,10 +1,11 @@
-use super::{CommonClient, UnaryResponse};
+use super::{ClientError, CommonClient, UnaryResponse};
 use anyhow::Result;
 use futures::StreamExt;
 use reqwest::{Client, ClientBuilder, header::HeaderMap};
 use reqwest_streams::{JsonStreamResponse, error::StreamBodyKind};
 use serde_json::Value;
 use std::{
+    error::Error,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -34,9 +35,23 @@ impl HttpClient {
 
 #[async_trait::async_trait]
 impl CommonClient for HttpClient {
-    async fn get(&self, url: String) -> Result<UnaryResponse> {
+    async fn get(&self, url: String) -> Result<UnaryResponse, ClientError> {
         let start = Instant::now();
-        let resp = self.client.get(url).send().await?;
+        let resp = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|err| match err.source() {
+                Some(source) => ClientError {
+                    status: err.status().unwrap_or_default().as_u16(),
+                    reason: source.to_string(),
+                },
+                None => ClientError {
+                    status: err.status().unwrap_or_default().as_u16(),
+                    reason: err.to_string(),
+                },
+            })?;
 
         let elapsed = start.elapsed();
         let status = resp.status().as_u16();
@@ -49,9 +64,24 @@ impl CommonClient for HttpClient {
         })
     }
 
-    async fn post(&self, url: String, body: String) -> Result<UnaryResponse> {
+    async fn post(&self, url: String, body: String) -> Result<UnaryResponse, ClientError> {
         let start = Instant::now();
-        let resp = self.client.post(url).body(body).send().await?;
+        let resp = self
+            .client
+            .post(url)
+            .body(body)
+            .send()
+            .await
+            .map_err(|err| match err.source() {
+                Some(source) => ClientError {
+                    status: err.status().unwrap_or_default().as_u16(),
+                    reason: source.to_string(),
+                },
+                None => ClientError {
+                    status: err.status().unwrap_or_default().as_u16(),
+                    reason: err.to_string(),
+                },
+            })?;
 
         let elapsed = start.elapsed();
         let status = resp.status().as_u16();
@@ -64,12 +94,13 @@ impl CommonClient for HttpClient {
         })
     }
 
-    async fn get_stream(&self, url: String, max_payload: usize) -> Result<Vec<Value>> {
+    async fn get_stream(&self, url: String, max_payload: usize) -> Result<Vec<Value>, ClientError> {
         let mut stream = self
             .client
             .get(url)
             .send()
-            .await?
+            .await
+            .map_err(|err| ClientError::with_reason(err.to_string()))?
             .json_nl_stream::<Value>(max_payload);
 
         let mut values = Vec::new();
@@ -79,7 +110,9 @@ impl CommonClient for HttpClient {
                 Err(err) => match err.kind() {
                     // Ignore the error as it's due to the stream being closed due to the max length reached.
                     StreamBodyKind::MaxLenReachedError | StreamBodyKind::CodecError => {}
-                    StreamBodyKind::InputOutputError => return Err(err.into()),
+                    StreamBodyKind::InputOutputError => {
+                        return Err(ClientError::with_reason(err.to_string()));
+                    }
                 },
             }
         }
@@ -92,13 +125,14 @@ impl CommonClient for HttpClient {
         url: String,
         body: String,
         max_payload: usize,
-    ) -> Result<Vec<Value>> {
+    ) -> Result<Vec<Value>, ClientError> {
         let mut stream = self
             .client
             .post(url)
             .body(body.clone())
             .send()
-            .await?
+            .await
+            .map_err(|err| ClientError::with_reason(err.to_string()))?
             .json_nl_stream::<Value>(max_payload);
 
         let mut values = Vec::new();
@@ -108,7 +142,9 @@ impl CommonClient for HttpClient {
                 Err(err) => match err.kind() {
                     // Ignore the error as it's due to the stream being closed due to the max length reached.
                     StreamBodyKind::MaxLenReachedError | StreamBodyKind::CodecError => {}
-                    StreamBodyKind::InputOutputError => return Err(err.into()),
+                    StreamBodyKind::InputOutputError => {
+                        return Err(ClientError::with_reason(err.to_string()));
+                    }
                 },
             }
         }

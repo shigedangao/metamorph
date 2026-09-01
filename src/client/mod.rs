@@ -27,10 +27,19 @@ pub enum TransportMethod {
     },
 }
 
+/// Represents the response from a unary HTTP or GRPC request.
+#[derive(Debug)]
 pub struct UnaryResponse {
     pub duration: Duration,
     pub status: u16,
     pub body: Option<Value>,
+}
+
+/// Represents an error from a unary HTTP or GRPC request.
+#[derive(Debug)]
+pub struct ClientError {
+    pub status: u16,
+    pub reason: String,
 }
 
 impl Clients {
@@ -94,21 +103,21 @@ pub trait CommonClient: Send + Sync {
     /// # Arguments
     ///
     /// * `url` - The URL to send the GET request to.
-    async fn get(&self, url: String) -> Result<UnaryResponse>;
+    async fn get(&self, url: String) -> Result<UnaryResponse, ClientError>;
     /// Performs a POST request to the specified URL with the given body.
     ///
     /// # Arguments
     ///
     /// * `url` - The URL to send the POST request to.
     /// * `body` - The body of the POST request.
-    async fn post(&self, url: String, body: String) -> Result<UnaryResponse>;
+    async fn post(&self, url: String, body: String) -> Result<UnaryResponse, ClientError>;
     /// Performs a GET request to the specified URL and returns a stream of results.
     ///
     /// # Arguments
     ///
     /// * `url` - The URL to send the GET request to.
     /// * `max_payload` - The maximum payload size to stream.
-    async fn get_stream(&self, url: String, max_payload: usize) -> Result<Vec<Value>>;
+    async fn get_stream(&self, url: String, max_payload: usize) -> Result<Vec<Value>, ClientError>;
     /// Performs a GET request to the specified URL with the given body and returns a stream of results.
     ///
     /// # Arguments
@@ -121,5 +130,31 @@ pub trait CommonClient: Send + Sync {
         url: String,
         body: String,
         max_payload: usize,
-    ) -> Result<Vec<Value>>;
+    ) -> Result<Vec<Value>, ClientError>;
+}
+
+impl std::error::Error for ClientError {}
+
+impl std::fmt::Display for ClientError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "an error occurred due to: {} with the status code: {}",
+            self.reason, self.status
+        )
+    }
+}
+
+impl ClientError {
+    /// Creates a new `ClientError` with the given reason.
+    ///
+    /// # Arguments
+    ///
+    /// * `reason` - The reason for the error.
+    pub fn with_reason<S: Into<String>>(reason: S) -> Self {
+        Self {
+            status: 500,
+            reason: reason.into(),
+        }
+    }
 }
