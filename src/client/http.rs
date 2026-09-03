@@ -14,6 +14,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct HttpClient {
     client: Client,
+    timeout: Duration,
 }
 
 impl HttpClient {
@@ -25,10 +26,8 @@ impl HttpClient {
     /// * `timeout` - The timeout to set on the client.
     pub fn new(headers: HeaderMap, timeout: Duration) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
-            client: ClientBuilder::new()
-                .default_headers(headers)
-                .timeout(timeout)
-                .build()?,
+            client: ClientBuilder::new().default_headers(headers).build()?,
+            timeout,
         }))
     }
 }
@@ -40,6 +39,7 @@ impl CommonClient for HttpClient {
         let resp = self
             .client
             .get(url)
+            .timeout(self.timeout)
             .send()
             .await
             .map_err(|err| match err.source() {
@@ -69,6 +69,7 @@ impl CommonClient for HttpClient {
         let resp = self
             .client
             .post(url)
+            .timeout(self.timeout)
             .body(body)
             .send()
             .await
