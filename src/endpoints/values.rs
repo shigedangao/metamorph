@@ -167,8 +167,13 @@ fn compare_numbers<F: FnMut(f64, f64, f64) -> Option<Vec<Diff>>>(
     let f_nb = f.as_f64().unwrap_or_default();
     let t_nb = t.as_f64().unwrap_or_default();
 
+    let denominator = (f_nb.abs() + t_nb.abs()) / 2.;
+    if denominator == 0. {
+        return None;
+    }
+
     // Compute the relative difference between the two numbers in percentage terms
-    let diff = (f_nb - t_nb) / f_nb * 100.;
+    let diff = (f_nb - t_nb).abs() / denominator * 100.;
     if diff > relative_diff {
         return cb(f_nb, t_nb, diff);
     }
